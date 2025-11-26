@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Email Analyzer UI</title>
+    <!-- Include Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Include jQuery Library -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Import external JavaScript -->
+    <script type="text/javascript" src="{{url_for('static', filename='js/main.js')}}"></script>
+    <!-- Import external CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div id="index_page">
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h1>Email Analyzer with AI<span id="updateMode" style="display:none"></span></h1>
+            </div>
+        </div>
+
+        <!-- AI Response Section -->
+        <div class="row">
+            <!-- Uploaded Email Content -->
+            <div class="col-md-6">
+                <div class="content-box">
+                    <h5>Uploaded Email Content</h5>
+                    <pre id="email-content" class="form-control" style="height: 300px;"></pre>
+                </div>
+            </div>
+
+            <!-- AI Response -->
+            <div id="ai_response" class="col-md-6">
+                <div class="content-box">
+                    <h5>AI Response</h5>
+                    <pre id="ai-response" class="form-control" style="height: 300px;"></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Structured Data - Sheets -->
+        <div class="row">
+            <div class="col-25">
+                <div class="table-section" style="overflow-x: auto;">
+                    <h5>Structured Data - Sheets</h5>
+                    <table class="table table-bordered" id="sheets-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th>
+                                <th>Grade</th>
+                                <th>Synonyms (optional)</th>
+                                <th>Color</th>
+                                <th>Length</th>
+                                <th>Length + Tolerance</th>
+                                <th>Length - Tolerance</th>
+                                <th>Length Unit of Measure</th>
+                                <th>Width</th>
+                                <th>Width + Tolerance</th>
+                                <th>Width - Tolerance</th>
+                                <th>Width Unit of Measure</th>
+                                <th>Thickness</th>
+                                <th>Thickness + Tolerance</th>
+                                <th>Thickness - Tolerance</th>
+                                <th>Thickness Unit of Measure</th>
+                                <th>Number of Masked sides</th>
+                                <th>Number of Sanded Sides</th>
+                                <th>Grain Direction</th>
+                                <th>Quantity</th>
+                                <th>Quantity Unit of Measure</th>
+                                <th>Testing Required</th>
+                                <th>Domestic Material</th>
+                                <th>Edit/Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sheets-table-body">
+                            <tr>
+                                <td>1</td>
+                                <td><input type="text" class="form-control" placeholder="Grade"></td>
+                                <td><input type="text" class="form-control" placeholder="Synonyms"></td>
+                                <td><input type="text" class="form-control" placeholder="Color"></td>
+                                <td><input type="text" class="form-control" placeholder="Length"></td>
+                                <td><input type="text" class="form-control" placeholder="Length + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Width"></td>
+                                <td><input type="text" class="form-control" placeholder="Width + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Width - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Width Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Number of Masked sides"></td>
+                                <td><input type="text" class="form-control" placeholder="Number of Sanded Sides"></td>
+                                <td><input type="text" class="form-control" placeholder="Grain Direction"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity Unit of Measure"></td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <!-- <button id="add-sheet-row" class="btn btn-info add-sheet-row">+</button>
+                                    <button id="remove-sheet-row" class="btn btn-danger remove-sheet-row">-</button> -->
+                                    <button class="btn btn-info add-sheet-row">+</button>
+                                    <button class="btn btn-danger remove-row">-</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- Structured Data - Rods -->
+        <div class="row">
+            <div class="col-19">
+                <div class="table-section" style="overflow-x: auto;">
+                    <h5>Structured Data - Rods</h5>
+                    <table class="table table-bordered" id="rods-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th>
+                                <th>Grade</th>
+                                <th>Synonyms (optional)</th>
+                                <th>Color</th>
+                                <th>Diameter</th>
+                                <th>Diameter + Tolerance</th>
+                                <th>Diameter - Tolerance</th>
+                                <th>Diameter Unit of Measure</th>
+                                <th>Length</th>
+                                <th>Length + Tolerance</th>
+                                <th>Length - Tolerance</th>
+                                <th>Length Unit of Measure</th>
+                                <th>Quantity</th>
+                                <th>Quantity Unit of Measure</th>
+                                <th width="80px">Hex Rod </th>
+                                <th>Rolled and Molded</th>                                                                                                                                                         
+                                <th>Testing Required</th>
+                                <th>Domestic Material</th>
+                                <th>Edit/Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rods-table-body">
+                            <tr>
+                                <td>1</td>
+                                <td><input type="text" class="form-control" placeholder="Grade"></td>
+                                <td><input type="text" class="form-control" placeholder="Synonyms"></td>
+                                <td><input type="text" class="form-control" placeholder="Color"></td>
+                                <td><input type="text" class="form-control" placeholder="Diameter"></td>
+                                <td><input type="text" class="form-control" placeholder="Diameter + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Diameter - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Diameter Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Length"></td>
+                                <td><input type="text" class="form-control" placeholder="Length + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity Unit of Measure"></td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <!-- <button id="add-rods-row" class="btn btn-info add-row">+</button>
+                                    <button id="remove-rods-row" class="btn btn-danger remove-row">-</button> -->
+                                    <button class="btn btn-info add-rods-row">+</button>
+                                    <button class="btn btn-danger remove-row">-</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <!-- <button id="add-rods-row" class="btn btn-info">Add Sheet Row</button>
+                    <button id="remove-rods-row" class="btn btn-danger">Remove Last Sheet Row</button> -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Structured Data - Tubes -->
+        <div class="row">
+            <div class="col-20">
+                <div class="table-section" style="overflow-x: auto;">
+                    <h5>Structured Data - Tubes</h5>
+                    <table class="table table-bordered" id="tubes-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th>
+                                <th>Grade</th>
+                                <th>Synonyms (optional)</th>
+                                <th>Color</th>
+                                <th>Outer Diameter</th>
+                                <th>Outer Diameter + Tolerance</th>
+                                <th>Outer Diameter - Tolerance</th>
+                                <th>Outer Diameter Unit of Measure</th>
+                                <th>Inner Diameter</th>
+                                <th>Inner Diameter + Tolerance</th>
+                                <th>Inner Diameter - Tolerance</th>
+                                <th>Inner Diameter Unit of Measure</th>
+                                <th>Length</th>
+                                <th>Length + Tolerance</th>
+                                <th>Length - Tolerance</th>
+                                <th>Length Unit of Measure</th>
+                                <th>Quantity</th>
+                                <th>Quantity Unit of Measure</th>
+                                <th>Testing Required</th>
+                                <th>Domestic Material</th>
+                                <th>Edit/Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tubes-table-body">
+                            <tr>
+                                <td>1</td>
+                                <td><input type="text" class="form-control" placeholder="Grade"></td>
+                                <td><input type="text" class="form-control" placeholder="Synonyms"></td>
+                                <td><input type="text" class="form-control" placeholder="Color"></td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter"></td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter + Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter - Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter"></td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter + Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter - Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Length"></td>
+                                <td><input type="text" class="form-control" placeholder="Length + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Length Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity Unit of Measure"></td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <button id="add-tube-row" class="btn btn-info add-tubs-row">+</button>
+                                    <button id="remove-tube-row" class="btn btn-danger remove-row">-</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Structured Data - Rings -->
+        <div class="row">
+            <div class="col-21">
+                <div class="table-section" style="overflow-x: auto;">
+                    <h5>Structured Data - Rings</h5>
+                    <table class="table table-bordered" id="ring-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th>
+                                <th>Grade</th>
+                                <th>Synonyms (optional)</th>
+                                <th>Color</th>
+                                <th>Outer Diameter</th>
+                                <th>Outer Diameter + Tolerance</th>
+                                <th>Outer Diameter - Tolerance</th>
+                                <th>Outer Diameter Unit of Measure</th>
+                                <th>Inner Diameter</th>
+                                <th>Inner Diameter + Tolerance</th>
+                                <th>Inner Diameter - Tolerance</th>
+                                <th>Inner Diameter Unit of Measure</th>
+                                <th>Thickness</th>
+                                <th>Thickness + Tolerance</th>
+                                <th>Thickness - Tolerance</th>
+                                <th>Thickness Unit of Measure</th>
+                                <th>Quantity</th>
+                                <th>Quantity Unit of Measure</th>
+                                <th>Testing Required</th>
+                                <th>Domestic Material</th>
+                                <th>Edit/Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ring-table-body">
+                            <tr>
+                                <td>1</td>
+                                <td><input type="text" class="form-control" placeholder="Grade"></td>
+                                <td><input type="text" class="form-control" placeholder="Synonyms"></td>
+                                <td><input type="text" class="form-control" placeholder="Color"></td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter"></td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter + Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter - Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Outer Diameter Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter"></td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter + Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter - Tolerance">
+                                </td>
+                                <td><input type="text" class="form-control" placeholder="Inner Diameter Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness + Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness - Tolerance"></td>
+                                <td><input type="text" class="form-control" placeholder="Thickness Unit of Measure"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity"></td>
+                                <td><input type="text" class="form-control" placeholder="Quantity Unit of Measure"></td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="form-control">
+                                        <option value="select" selected>select</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <button id="add-rings-row" class="btn btn-info add-ring-row">+</button>
+                                    <button id="remove-rings-row" class="btn btn-danger remove-row">-</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <!-- <button id="add-rings-row" class="btn btn-info">Add Sheet Row</button>
+                    <button id="remove-rings-row" class="btn btn-danger">Remove Last Sheet Row</button> -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls" style="text-align: center; margin: 20px;">
+        <button id="synonyms_ui" class="btn btn-primary">Synonyms Mapping</button>
+        
+    </div>
+    <!-- Control Buttons -->
+    <div class="controls" style="text-align: center; margin: 20px;">
+        <button id="save-changes" class="btn btn-success">Save Changes</button>
+        <!-- <button id="revert-changes" class="btn btn-warning">Revert Changes</button> -->
+        <button id="download-json" class="btn btn-primary">Download JSON</button>
+        <button id="finetune-json" class="btn btn-primary">Fine tune processed files</button>
+        
+    </div>
+
+    <!-- File Upload Section -->
+    <div id="dragDrop" class="row">
+        <div class="col-12 upload-section">
+            <div class="upload-btn" id="drop-area">
+                <p>Drag & Drop .eml file here</p>
+                <!-- <button class="btn btn-primary" id="send-btn" type="button">Drag & Drop file here</button> -->
+            </div>
+        </div>
+    </div>
+    <!-- Loader Element -->
+    <div class="row">
+        <div class="col-12 upload-section">
+            <div id="loader">
+                <div class="spinner"></div>
+                <span class="sr-only"> Fetching Response From AI</span>
+            </div>
+        </div>
+    </div>
+    </div>
+    <!-- <div id="fileDiv" class="container" style="display: none;">
+        <div id="file-list-container" class="text-center">
+            <h2>List of Files</h2>
+            <p id="file-counter" class="text-muted"></p>
+            <ul id="file-list" class="d-flex justify-content-center"></ul>
+            
+            <div class="d-flex justify-content-center gap-2">
+                <button id="Perform-finetuning" class="btn btn-primary" style="display: none;">Perform Finetuning</button>
+                <button id="back" class="btn btn-success" style="display: none;">Back</button>
+            </div>
+        </div>
+    </div> -->
+
+    <div id="fileDiv" class="container" style="display: none;">
+        <div id="file-list-container" class="text-center">
+            <h2>List of Files</h2>
+            <p id="file-counter" class="text-muted"></p>
+            <div class="row justify-content-center">
+                <div id="file-list" class="file-list-scroll custom-scrollbar shadow-sm"></div>
+            </div>
+            
+            <div class="d-flex justify-content-center gap-2">
+                <button id="Perform-finetuning" class="btn btn-primary" style="display: none;">Perform Finetuning</button>
+                <button id="back" class="btn btn-success" style="display: none;">Back</button>
+            </div>
+        </div>
+    </div>
+    <!-- Include Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

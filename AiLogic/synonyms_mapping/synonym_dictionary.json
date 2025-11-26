@@ -1,0 +1,274 @@
+{
+    "Nylon": [
+        "Nylon",
+        "Grade Nylon"
+    ],
+    "X": [
+        "24768/12",
+        "PBM",
+        "MIL-I-24768/12",
+        "X Phenolic",
+        "/12",
+        "phenolic x",
+        "phenolic x paper",
+        "x paper",
+        "NEMA X",
+        "phenolic pbm",
+        "Paper Phenolic",
+        "Phenolic Paper"
+    ],
+    "XX": [
+        "paper phenolic",
+        "phenolic paper",
+        "PBG",
+        "24768/11",
+        "MIL-I-24768/11",
+        "XX Phenolic",
+        "phenolic xx",
+        "phenolic xx paper",
+        "xx paper",
+        "NEMA XX",
+        "phenolic pbg",
+        "XXP"
+    ],
+    "XXX": [
+        "PBE",
+        "24768/10",
+        "MIL-I-24768/10",
+        "XXX Phenolic",
+        "/10",
+        "phenolic xxx",
+        "phenolic xxx paper",
+        "xxx paper",
+        "NEMA XXX",
+        "phenolic pbe",
+        "XXXP",
+        "XXXPC"
+    ],
+    "C": [
+        "FBM",
+        "24768/16",
+        "MIL-I-24768/16",
+        "C Phenolic",
+        "/16",
+        "phenolic c",
+        "phenolic c canvas",
+        "c canvas",
+        "NEMA C",
+        "phenolic fbm",
+        "C Grade",
+        "Ryertex 223"
+    ],
+    "CE": [
+        "canvas phenolic",
+        "phenolic canvas",
+        "FBG",
+        "24768/14",
+        "MIL-I-24768/14",
+        "CE Phenolic",
+        "/14",
+        "phenolic ce",
+        "ce canvas",
+        "NEMA CE",
+        "phenolic fbg",
+        "Ryertex",
+        "Micarta"
+    ],
+    "L": [
+        "FBI",
+        "24768/15",
+        "MIL-I-24768/15",
+        "L Phenolic",
+        "/15",
+        "phenolic l",
+        "l linen",
+        "linen",
+        "NEMA L",
+        "phenolic fbi",
+        "L Grade"
+    ],
+    "LE": [
+        "linen phenolic",
+        "phenolic linen",
+        "FBE",
+        "24768/13",
+        "MIL-I-24768/13",
+        "LE Phenolic",
+        "/13",
+        "phenolic le",
+        "le linen",
+        "NEMA LE",
+        "phenolic fbe",
+        "Phenolic Linen"
+    ],
+    "G3": [
+        "G-3",
+        "Glass phenolic",
+        "phenolic glass",
+        "GBG",
+        "24768/18",
+        "MIL-I-24768/18",
+        "/18",
+        "phenolic g3",
+        "NEMA G3",
+        "NEMA G-3",
+        "phenolic gbg"
+    ],
+    "G5": [
+        "G-5",
+        "GMG",
+        "MIL-I-24768/8",
+        "NEMA G5",
+        "G5 Phenolic"
+    ],
+    "G9": [
+        "G-9",
+        "glass melamine",
+        "melamine glass",
+        "GME",
+        "24768/1",
+        "MIL-I-24768/1",
+        "/1",
+        "phenolic G9",
+        "NEMA G9",
+        "NEMA G-9",
+        "Melamine",
+        "Melamine Glass"
+    ],
+    "G10": [
+        "G-10",
+        "GEE",
+        "24768/2",
+        "MIL-I-24768/2",
+        "/2",
+        "Phenolic G10",
+        "NEMA G10",
+        "NEMA G-10",
+        "G10/2",
+        "GAROLITE G10",
+        "Non Bromine",
+        "Non-bromine",
+        "non brominated",
+        "NB Sheet",
+        "G10 NB",
+        "true G10",
+        "true G-10",
+        "G10 Cryo",
+        "Cryo grade",
+        "non-halogen",
+        "Non halogen",
+        "Non halogenated",
+        "no halogen"
+    ],
+    "FR4": [
+        "FR-4",
+        "G10/FR4",
+        "glass epoxy",
+        "epoxy glass",
+        "GEE-F",
+        "GEEF",
+        "24768/27",
+        "MIL-I-24768/27",
+        "Phenolic FR4",
+        "NEMA FR4",
+        "NEMA FR-4",
+        "Garolite",
+        "NP510A"
+    ],
+    "G11": [
+        "G-11",
+        "high temperature glass epoxy",
+        "GEB",
+        "24768/3",
+        "MIL-I-24768/3",
+        "/3",
+        "Phenolic G11",
+        "NEMA G11",
+        "NEMA G-11",
+        "Class F",
+        "Class H",
+        "G11H"
+    ],
+    "FR5": [
+        "FR-5",
+        "GEB-F",
+        "GEBF",
+        "24768/28",
+        "MIL-I-24768/28",
+        "/28",
+        "Phenolic FR5",
+        "NEMA FR5",
+        "NEMA FR-5"
+    ],
+    "G7": [
+        "G-7",
+        "glass silicone",
+        "silicone glass",
+        "GSG",
+        "24768/17",
+        "MIL-I-24768/17",
+        "/17",
+        "Phenolic G7",
+        "NEMA G7",
+        "NEMA G-7",
+        "Glass Silicone"
+    ],
+    "XP": [
+        "PBM-P",
+        "MIL-I-24768/19",
+        "NEMA XP"
+    ],
+    "XPC": [
+        "PBM-PC",
+        "MIL-I-24768/20",
+        "NEMA XPC"
+    ],
+    "XXP": [
+        "PBG-P",
+        "MIL-I-24768/21",
+        "NEMA XXP"
+    ],
+    "XXXP": [
+        "PBE-P",
+        "MIL-I-24768/22",
+        "NEMA XXXP"
+    ],
+    "XXXPC": [
+        "PBE-PC",
+        "MIL-I-24768/23",
+        "NEMA XXXPC"
+    ],
+    "GPO3": [
+        "Polyester Glass",
+        "GPO-3",
+        "NEMA GPO3"
+    ],
+    "TBG": [
+        "Tube",
+        "TBG"
+    ],
+    "Bar": [
+        "Sheet",
+        "Bar"
+    ],
+    "Rod": [
+        "Dowel",
+        "Rod"
+    ],
+    "Natural": [
+        "Nat",
+        "natu",
+        "Natural"
+    ],
+    "Black": [
+        "blk",
+        "Black"
+    ],
+    "Green": [
+        "grn",
+        "Green"
+    ],
+    "Acetal": [
+        "Acetal"
+    ]
+}
