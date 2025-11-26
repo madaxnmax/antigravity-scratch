@@ -231,7 +231,12 @@ const Checkbox = ({ label }) => (
     </label>
 );
 
-const ConfigForm = ({ type }) => {
+const ConfigForm = ({ type, formState, onChange }) => {
+    // Helper to handle change safely
+    const handleChange = (field, e) => {
+        if (onChange) onChange(field, e.target ? e.target.value : e);
+    };
+
     return (
         <div className="bg-white p-5 rounded-b border border-t-0 border-gray-200 shadow-sm animate-in fade-in duration-200">
             {/* --- DYNAMIC FORMS RESTORED --- */}
@@ -248,25 +253,25 @@ const ConfigForm = ({ type }) => {
                         </div>
                     )}
                     <div className="grid grid-cols-3 gap-4">
-                        <FormSelect label="Grade" options={["G10", "FR4", "G11", "Phenolic C", "Phenolic CE"]} />
+                        <FormSelect label="Grade" options={["G10", "FR4", "G11", "Phenolic C", "Phenolic CE"]} value={formState?.grade} onChange={(e) => handleChange('grade', e)} />
                         <FormSelect label="Select Size" options={["48x96", "36x48", "Custom"]} />
-                        <FormSelect label="Select Color" options={["Natural", "Black", "Yellow"]} />
+                        <FormSelect label="Select Color" options={["Natural", "Black", "Yellow"]} value={formState?.color} onChange={(e) => handleChange('color', e)} />
                     </div>
 
                     {type === 'Cut Piece/Sand' ? (
                         <>
                             <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded border border-gray-100">
-                                <FormInput label="Length" placeholder="12.00" />
+                                <FormInput label="Length" placeholder="12.00" value={formState?.length} onChange={(e) => handleChange('length', e)} />
                                 <FormInput label="Length (+)" placeholder="0.005" />
                                 <FormInput label="Length (-)" placeholder="0.005" />
                             </div>
                             <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded border border-gray-100">
-                                <FormInput label="Width" placeholder="4.00" />
+                                <FormInput label="Width" placeholder="4.00" value={formState?.width} onChange={(e) => handleChange('width', e)} />
                                 <FormInput label="Width (+)" placeholder="0.005" />
                                 <FormInput label="Width (-)" placeholder="0.005" />
                             </div>
                             <div className="grid grid-cols-3 gap-4">
-                                <FormInput label="Sanded Thickness" />
+                                <FormInput label="Sanded Thickness" value={formState?.thickness} onChange={(e) => handleChange('thickness', e)} />
                                 <FormInput label="Thick (+)" />
                                 <FormInput label="Thick (-)" />
                             </div>
@@ -281,14 +286,14 @@ const ConfigForm = ({ type }) => {
                         </>
                     ) : (
                         <div className="grid grid-cols-3 gap-4">
-                            <FormInput label="Thickness" />
-                            <FormInput label="Length" />
-                            <FormInput label="Width" />
+                            <FormInput label="Thickness" value={formState?.thickness} onChange={(e) => handleChange('thickness', e)} />
+                            <FormInput label="Length" value={formState?.length} onChange={(e) => handleChange('length', e)} />
+                            <FormInput label="Width" value={formState?.width} onChange={(e) => handleChange('width', e)} />
                         </div>
                     )}
 
                     <div className="grid grid-cols-1 pt-2">
-                        <FormInput label="Quantity" placeholder="0" />
+                        <FormInput label="Quantity" placeholder="0" value={formState?.quantity} onChange={(e) => handleChange('quantity', e)} />
                     </div>
                 </div>
             )}
@@ -300,19 +305,19 @@ const ConfigForm = ({ type }) => {
                         <FormInput label="Input SKU (Optional):" placeholder="Scan or type..." />
                     </div>
                     <div className="grid grid-cols-3 gap-4">
-                        <FormSelect label="Grade" options={["G10", "FR4", "Phenolic LE", "Phenolic CE", "Acetal"]} />
-                        <FormSelect label="Color" options={["Natural", "Black"]} />
-                        <FormInput label="Diameter" placeholder='1.0"' />
+                        <FormSelect label="Grade" options={["G10", "FR4", "Phenolic LE", "Phenolic CE", "Acetal"]} value={formState?.grade} onChange={(e) => handleChange('grade', e)} />
+                        <FormSelect label="Color" options={["Natural", "Black"]} value={formState?.color} onChange={(e) => handleChange('color', e)} />
+                        <FormInput label="Diameter" placeholder='1.0"' value={formState?.diameter} onChange={(e) => handleChange('diameter', e)} />
                     </div>
                     {type === 'Cut Rod' && (
                         <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded border border-gray-100">
-                            <FormInput label="Cut Length" placeholder="6.00" />
+                            <FormInput label="Cut Length" placeholder="6.00" value={formState?.length} onChange={(e) => handleChange('length', e)} />
                             <FormInput label="Length (+)" placeholder="0.010" />
                             <FormInput label="Length (-)" placeholder="0.010" />
                         </div>
                     )}
                     <div className="grid grid-cols-1">
-                        <FormInput label="Quantity" placeholder="e.g. 10 pcs or 200 ft" />
+                        <FormInput label="Quantity" placeholder="e.g. 10 pcs or 200 ft" value={formState?.quantity} onChange={(e) => handleChange('quantity', e)} />
                     </div>
                 </div>
             )}
@@ -321,8 +326,8 @@ const ConfigForm = ({ type }) => {
             {(type === 'Tube' || type === 'Cut Tube') && (
                 <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-4">
-                        <FormSelect label="Grade" options={["G10", "FR4", "G11"]} />
-                        <FormSelect label="Color" options={["Natural", "Black"]} />
+                        <FormSelect label="Grade" options={["G10", "FR4", "G11"]} value={formState?.grade} onChange={(e) => handleChange('grade', e)} />
+                        <FormSelect label="Color" options={["Natural", "Black"]} value={formState?.color} onChange={(e) => handleChange('color', e)} />
                         <FormSelect label="Tube Type" options={["Rolled & Molded", "Filament Wound"]} />
                     </div>
                     <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded border border-gray-100">
@@ -337,13 +342,13 @@ const ConfigForm = ({ type }) => {
                     </div>
                     {type === 'Cut Tube' ? (
                         <div className="grid grid-cols-3 gap-4 bg-blue-50 p-3 rounded border border-blue-100">
-                            <FormInput label="Cut Length" />
+                            <FormInput label="Cut Length" value={formState?.length} onChange={(e) => handleChange('length', e)} />
                             <FormInput label="Length (+)" />
                             <FormInput label="Length (-)" />
                         </div>
                     ) : (
                         <div className="grid grid-cols-3 gap-4">
-                            <FormInput label="Stock Length" placeholder="e.g. 48 inches" />
+                            <FormInput label="Stock Length" placeholder="e.g. 48 inches" value={formState?.length} onChange={(e) => handleChange('length', e)} />
                         </div>
                     )}
                     <div className="grid grid-cols-2 gap-4">
@@ -351,7 +356,7 @@ const ConfigForm = ({ type }) => {
                         <FormInput label="Target Price" suffix="$" />
                     </div>
                     <div className="grid grid-cols-1">
-                        <FormInput label="Quantity" />
+                        <FormInput label="Quantity" value={formState?.quantity} onChange={(e) => handleChange('quantity', e)} />
                     </div>
                 </div>
             )}
@@ -614,6 +619,13 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                     </div>
                                     <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4">
                                         {msg.text}
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h2 className="text-lg font-bold text-gray-800">Add Items to Quote</h2>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm shadow-sm transition-all"><FileText size={16} /> Import from Email</button>
+                                                <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm shadow-sm"><Upload size={16} /> Upload CSV</button>
+                                            </div>
+                                        </div>
                                         <div className="mt-4 pt-4 border-t border-gray-100">
                                             <div className="text-xs font-bold text-gray-500 mb-2">1 Attachment</div>
                                             <div className="w-24 h-32 border border-gray-200 rounded bg-gray-50 flex items-center justify-center text-xs text-gray-400">PDF</div>
@@ -728,6 +740,81 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
     const [optimizationResult, setOptimizationResult] = useState(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
+    // Form State for ConfigForm
+    const [formState, setFormState] = useState({
+        grade: 'G10',
+        color: 'Natural',
+        thickness: '',
+        width: '',
+        length: '',
+        diameter: '',
+        quantity: ''
+    });
+
+    const handleFormChange = (field, value) => {
+        setFormState(prev => ({ ...prev, [field]: value }));
+    };
+
+    // AI Import State
+    const [emailContent, setEmailContent] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+
+    const handleImportEmail = async () => {
+        if (!emailContent.trim()) return;
+        setIsImporting(true);
+        try {
+            const res = await fetch('/api/ai/parse-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: emailContent })
+            });
+            const data = await res.json();
+
+            // Convert AI response to cart items
+            const newItems = [];
+            let idCounter = Date.now();
+
+            const processItems = (items, type) => {
+                if (!items) return;
+                items.forEach(item => {
+                    newItems.push({
+                        id: idCounter++,
+                        type: type,
+                        desc: `${item.Grade} ${item.Color} ${type}`,
+                        qty: parseInt(item.Quantity) || 1,
+                        specs: {
+                            mat: `${item.Grade}/${item.Color}`,
+                            dims: formatDims(item, type)
+                        }
+                    });
+                });
+            };
+
+            processItems(data.sheet_value, 'Sheet');
+            processItems(data.rod_value, 'Rod');
+            processItems(data.tube_value, 'Tube');
+            processItems(data.ring_value, 'Ring');
+
+            setCart([...cart, ...newItems]);
+            setShowImportModal(false);
+            setEmailContent('');
+        } catch (err) {
+            console.error("Import failed", err);
+            alert("Failed to parse email. Please try again.");
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const formatDims = (item, type) => {
+        if (type === 'Sheet') return `${item.Thickness}" x ${item.Width}" x ${item.Length}"`;
+        if (type === 'Rod') return `${item.Diameter}" OD x ${item.Length}"`;
+        if (type === 'Tube') return `${item.Outer_Diameter}" OD x ${item.Inner_Diameter}" ID x ${item.Length}"`;
+        if (type === 'Ring') return `${item.Outer_Diameter}" OD x ${item.Inner_Diameter}" ID x ${item.Thickness}" Thk`;
+        return '';
+    };
+
     const handleOptimize = async () => {
         setIsOptimizing(true);
         try {
@@ -804,15 +891,70 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         }
     }, [step, cart, selectedItemId]);
 
-    const addToCart = () => {
-        const specs = getMockSpecs(activeType);
-        setCart([...cart, {
-            id: Date.now(),
-            type: activeType,
-            desc: getDescription(activeType, specs),
-            qty: 10,
-            specs: { ...specs, mat: `${specs.grade} / ${specs.color}` }
-        }]);
+    const addToCart = async () => {
+        // Parse dimensions for API
+        let width = 0, length = 0, thickness = 0, diameter = 0;
+
+        if (activeType === 'Sheet' || activeType === 'Cut Piece/Sand') {
+            thickness = parseFloat(formState.thickness) || 0;
+            width = parseFloat(formState.width) || 0;
+            length = parseFloat(formState.length) || 0;
+        } else if (activeType === 'Rod' || activeType === 'Cut Rod') {
+            diameter = parseFloat(formState.diameter) || 0;
+            length = parseFloat(formState.length) || 0;
+        }
+
+        try {
+            const res = await fetch('/api/pricing/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: activeType.split('/')[0].replace('Cut ', ''), // Normalize type
+                    specs: {
+                        grade: formState.grade,
+                        color: formState.color,
+                        thickness, width, length, diameter
+                    },
+                    quantity: parseInt(formState.quantity) || 1
+                })
+            });
+
+            const pricingData = await res.json();
+
+            if (!res.ok) {
+                console.error("Pricing failed", pricingData);
+                // Fallback to mock if API fails (or for types not yet supported)
+                setCart([...cart, {
+                    id: Date.now(),
+                    type: activeType,
+                    desc: `${formState.grade} ${formState.color} ${activeType}`,
+                    qty: parseInt(formState.quantity) || 1,
+                    specs: {
+                        mat: `${formState.grade}/${formState.color}`,
+                        dims: `${thickness}" x ${width}" x ${length}"`
+                    },
+                    price: 0
+                }]);
+                return;
+            }
+
+            setCart([...cart, {
+                id: Date.now(),
+                type: activeType,
+                desc: pricingData.description || `${formState.grade} ${formState.color} ${activeType}`,
+                qty: parseInt(formState.quantity) || 1,
+                specs: {
+                    mat: `${formState.grade}/${formState.color}`,
+                    dims: pricingData.description || `${thickness}" x ${width}" x ${length}"`
+                },
+                price: pricingData.unitPrice,
+                total: pricingData.totalPrice,
+                itemNumber: pricingData.itemNumber
+            }]);
+
+        } catch (err) {
+            console.error("Add to cart error", err);
+        }
     };
 
     if (!isOpen) return null;
@@ -864,12 +1006,12 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                 <div className="flex-1 overflow-y-auto p-6">
                                     <div className="max-w-4xl mx-auto">
                                         <div className="mb-6 bg-blue-50 border border-blue-100 rounded-lg p-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2 text-blue-800 font-bold text-sm uppercase tracking-wide">
-                                                    <User size={16} /> Customer Information
-                                                    {isCrmResolved && <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1"><CheckCircle size={10} /> Verified from CRM</span>}
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h2 className="text-lg font-bold text-gray-800">Add Items to Quote</h2>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm shadow-sm transition-all"><FileText size={16} /> Import from Email</button>
+                                                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm shadow-sm"><Upload size={16} /> Upload CSV</button>
                                                 </div>
-                                                <button className="text-xs text-blue-600 hover:underline flex items-center gap-1"><RefreshCw size={10} /> Reset lookup</button>
                                             </div>
                                             <div className="grid grid-cols-3 gap-4">
                                                 <FormInput label="Account Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
@@ -877,7 +1019,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                 <FormInput label="Contact Name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
                                             </div>
                                         </div>
-                                        <ConfigForm type={activeType} />
+                                        <ConfigForm type={activeType} formState={formState} onChange={handleFormChange} />
                                         <div className="mt-6 flex justify-end">
                                             <button className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded font-bold shadow-lg flex items-center gap-2" onClick={addToCart}><Plus size={18} /> Add Line Item</button>
                                         </div>

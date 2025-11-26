@@ -1,6 +1,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const Nylas = require('nylas');
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -113,8 +114,66 @@ app.post('/opticutter/optimize', async (req, res) => {
 });
 
 // Serve static files from the React client
-const path = require('path');
 app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// AI Route
+const aiService = require('./src/services/ai');
+
+app.post('/api/ai/parse-email', async (req, res) => {
+    try {
+        const { content } = req.body;
+        if (!content) {
+            return res.status(400).json({ error: 'Content is required' });
+        }
+        const result = await aiService.parseEmail(content);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to parse email' });
+    }
+});
+
+// Pricing Route
+const pricingService = require('./src/services/pricing');
+
+app.post('/api/pricing/calculate', async (req, res) => {
+    try {
+        const { type, specs, quantity } = req.body;
+        if (!type || !specs || !quantity) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        let result;
+        if (type === 'Sheet') {
+            result = await pricingService.calculateSheetPrice({
+                grade: specs.grade,
+                color: specs.color,
+                thickness: specs.thickness,
+                width: specs.width,
+                length: specs.length,
+                quantity: parseInt(quantity)
+            });
+        } else if (type === 'Rod') {
+            result = await pricingService.calculateRodPrice({
+                grade: specs.grade,
+                color: specs.color,
+                diameter: specs.diameter,
+                length: specs.length,
+                quantity: parseInt(quantity)
+            });
+        } else {
+            return res.status(400).json({ error: 'Invalid type' });
+        }
+
+        if (result.error) {
+            return res.status(404).json(result);
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Pricing Route Error:', error);
+        res.status(500).json({ error: 'Failed to calculate price' });
+    }
+});
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
@@ -123,4 +182,3 @@ app.get('*', (req, res) => {
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
-
