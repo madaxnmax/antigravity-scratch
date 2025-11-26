@@ -2139,20 +2139,32 @@ const MetalFlowApp = () => {
     };
 
     const onViewQuote = (id) => {
+        console.log("View Quote clicked:", id);
         const msg = currentMessages.find(m => m.quoteId === id);
+        console.log("Found message:", msg);
+
         if (msg && msg.quoteData) {
-            setQuoteInitialCart(msg.quoteData.cart);
+            console.log("Quote Data:", msg.quoteData);
+            setQuoteInitialCart(msg.quoteData.cart || []);
             setQuoteReadOnly(true);
             setIsQuoteModalOpen(true);
+        } else {
+            console.error("Quote data not found for id:", id);
+            alert("Error: Could not load quote details.");
         }
     };
 
     const onCloneQuote = (id) => {
+        console.log("Clone Quote clicked:", id);
         const msg = currentMessages.find(m => m.quoteId === id);
+
         if (msg && msg.quoteData) {
-            setQuoteInitialCart(msg.quoteData.cart);
+            setQuoteInitialCart(msg.quoteData.cart || []);
             setQuoteReadOnly(false);
             setIsQuoteModalOpen(true);
+        } else {
+            console.error("Quote data not found for id:", id);
+            alert("Error: Could not clone quote.");
         }
     };
 
