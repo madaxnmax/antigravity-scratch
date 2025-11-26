@@ -722,8 +722,19 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
     };
 
     // Send Email Logic
-    const handleSendReply = async () => {
-        if (!pendingReply.trim()) return;
+    // Send Email Logic
+    const handleSendReply = async (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        console.log("SYSTEM ACTION: Attempting to SEND reply...");
+
+        if (!pendingReply.trim()) {
+            console.log("SYSTEM ACTION: Reply is empty, aborting.");
+            return;
+        }
+
         setSendStatus('Sending...');
 
         try {
@@ -731,10 +742,13 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
             const grantIdToSend = defaultGrantId || (grants.length > 0 ? grants[0].id : null);
 
             if (!grantIdToSend) {
+                console.error("SYSTEM ACTION: No grant found to send from.");
                 alert("No connected account found to send from.");
                 setSendStatus('Error');
                 return;
             }
+
+            console.log("SYSTEM ACTION: Sending to API...", { grantId: grantIdToSend, to: toField, subject });
 
             const res = await fetch('/nylas/send', {
                 method: 'POST',
@@ -749,9 +763,13 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                 })
             });
 
-            if (!res.ok) throw new Error("Failed to send email");
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Failed to send email: ${res.status} ${errorText}`);
+            }
 
             const data = await res.json();
+            console.log("SYSTEM ACTION: API Success", data);
 
             // Optimistically add message
             setMessages([...messages, {
@@ -768,7 +786,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
         } catch (err) {
             console.error("Error sending email:", err);
             setSendStatus('Error');
-            alert("Failed to send email. Check console for details.");
+            alert(`Failed to send email: ${err.message}`);
         }
     };
 
@@ -958,7 +976,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                     <ImageIcon size={16} className="hover:text-gray-600 cursor-pointer" />
                                 </div>
                                 <div className="relative flex items-center">
-                                    <button onClick={handleSendReply} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">
+                                    <button type="button" onClick={handleSendReply} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">
                                         {sendStatus === 'Sending...' ? 'Sending...' : 'Send & archive'}
                                     </button>
                                     <button onClick={() => setSendMenuOpen(!sendMenuOpen)} className="bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-1.5 rounded-r transition-colors"><ChevronDown size={16} /></button>
