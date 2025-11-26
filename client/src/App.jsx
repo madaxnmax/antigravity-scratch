@@ -748,24 +748,27 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                 return;
             }
 
-            console.log("SYSTEM ACTION: Sending to API...", { grantId: grantIdToSend, to: toField, subject });
+            const payload = {
+                grantId: grantIdToSend,
+                to: toField,
+                cc: ccField,
+                subject: subject,
+                body: pendingReply,
+                replyToMessageId: messages.length > 0 ? messages[messages.length - 1].id : undefined
+            };
+
+            console.log("SYSTEM ACTION: Sending to API with payload:", JSON.stringify(payload, null, 2));
 
             const res = await fetch('/nylas/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    grantId: grantIdToSend,
-                    to: toField,
-                    cc: ccField,
-                    subject: subject,
-                    body: pendingReply,
-                    replyToMessageId: messages.length > 0 ? messages[messages.length - 1].id : undefined // Simplified reply logic
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Failed to send email: ${res.status} ${errorText}`);
+                const errorData = await res.json();
+                console.error("SYSTEM ACTION: API Error Response:", errorData);
+                throw new Error(`Failed to send email: ${res.status} ${errorData.error || 'Unknown error'}`);
             }
 
             const data = await res.json();
