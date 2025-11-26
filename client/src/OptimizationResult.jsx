@@ -1,15 +1,19 @@
 import React, { useMemo } from 'react';
 
 const OptimizationResult = ({ result }) => {
+    // Normalize result structure
+    const solution = result?.solution || result;
+    const layouts = solution?.layouts || [];
+
     const calculatedYield = useMemo(() => {
-        if (!result?.solution) return 0;
-        if (result.solution.yield) return result.solution.yield;
+        if (!solution) return 0;
+        if (solution.yield) return solution.yield;
 
         let totalStockArea = 0;
         let totalPartsArea = 0;
 
-        if (result.solution.layouts) {
-            result.solution.layouts.forEach(layout => {
+        if (layouts.length > 0) {
+            layouts.forEach(layout => {
                 const stockL = parseFloat(layout.stock.length);
                 const stockW = parseFloat(layout.stock.width);
                 const stockArea = stockL * stockW;
@@ -26,7 +30,7 @@ const OptimizationResult = ({ result }) => {
         }
 
         return totalStockArea > 0 ? totalPartsArea / totalStockArea : 0;
-    }, [result]);
+    }, [solution, layouts]);
 
     if (!result) {
         return (
@@ -36,11 +40,22 @@ const OptimizationResult = ({ result }) => {
         );
     }
 
+    if (layouts.length === 0) {
+        return (
+            <div className="flex-1 p-4 overflow-y-auto">
+                <div className="text-xs font-bold mb-2 text-red-500">No Layouts Found</div>
+                <pre className="text-[10px] bg-gray-50 p-2 rounded overflow-auto max-h-60">
+                    {JSON.stringify(result, null, 2)}
+                </pre>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-full">
             <div className="flex-1 p-4 overflow-y-auto">
                 <div className="text-xs font-bold mb-2">Solution Found</div>
-                {result.solution && result.solution.layouts && result.solution.layouts.map((layout, i) => (
+                {layouts.map((layout, i) => (
                     <div key={i} className="mb-4 bg-white p-2 border border-gray-200 rounded">
                         <div className="text-[10px] text-gray-500 mb-1">Stock: {layout.stock.length}" x {layout.stock.width}" (Qty: {layout.count})</div>
                         <div className="relative bg-gray-100 border border-gray-300 w-full" style={{ aspectRatio: `${layout.stock.length}/${layout.stock.width}` }}>

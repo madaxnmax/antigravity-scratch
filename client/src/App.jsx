@@ -13,7 +13,6 @@ import {
     UserPlus, Image as ImageIcon, Quote, FileText, Upload
 } from 'lucide-react';
 import OptimizationResult from './OptimizationResult';
-import TestPage from './TestPage';
 
 // --- 1. MOCK DATA & TYPES ---
 
@@ -1401,10 +1400,6 @@ const MetalFlowApp = () => {
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
 
-    // Test Page Route
-    if (window.location.pathname === '/test-optimization') {
-        return <TestPage />;
-    }
 
     // Fetch grants on mount
     useEffect(() => {
