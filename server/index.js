@@ -76,12 +76,43 @@ app.get('/nylas', async (req, res) => {
     }
 });
 
+app.use(express.json());
+
 app.get('/opticutter', (req, res) => {
     const opticutterKey = process.env.OPTICUTTER_API_KEY;
     if (!opticutterKey) {
         return res.status(500).json({ error: 'OptiCutter not configured' });
     }
     res.json({ status: 'OptiCutter Configured', apiKeyPresent: true });
+});
+
+app.post('/opticutter/optimize', async (req, res) => {
+    const opticutterKey = process.env.OPTICUTTER_API_KEY;
+    if (!opticutterKey) {
+        return res.status(500).json({ error: 'OptiCutter API key not configured' });
+    }
+
+    try {
+        const response = await fetch('https://api.opticutter.com/linear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${opticutterKey}`
+            },
+            body: JSON.stringify(req.body)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error("OptiCutter Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Serve static files from the React client
