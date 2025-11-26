@@ -646,6 +646,15 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
     const [mentionQuery, setMentionQuery] = useState(null);
     const [mentionCursorIndex, setMentionCursorIndex] = useState(null);
 
+    // Internal Comment Box State
+    const [isComposing, setIsComposing] = useState(false);
+    const [commentText, setCommentText] = useState("");
+    const [commentMentionQuery, setCommentMentionQuery] = useState(null);
+    const [commentMentionCursorIndex, setCommentMentionCursorIndex] = useState(null);
+
+    const filteredGrants = mentionQuery !== null ? grants.filter(g => (g.name || g.email).toLowerCase().includes(mentionQuery.toLowerCase())) : [];
+    const commentFilteredGrants = commentMentionQuery !== null ? grants.filter(g => (g.name || g.email).toLowerCase().includes(commentMentionQuery.toLowerCase())) : [];
+
     const crmInfo = thread ? resolveCustomerFromEmail(thread.senderEmail) : null;
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -719,6 +728,51 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
         setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: newChatMsg, time: "Just now" }]);
         setNewChatMsg("");
+    };
+
+    // Internal Comment Logic
+    const handleCommentInput = (e) => {
+        const val = e.target.value;
+        setCommentText(val);
+
+        // Mention detection for comment box
+        const lastChar = val.slice(-1);
+        if (lastChar === '@') {
+            setCommentMentionQuery('');
+            setCommentMentionCursorIndex(val.length);
+        } else if (commentMentionQuery !== null) {
+            if (lastChar === ' ') {
+                setCommentMentionQuery(null);
+            } else {
+                setCommentMentionQuery(val.slice(commentMentionCursorIndex));
+            }
+        }
+    };
+
+    const insertCommentMention = (name) => {
+        if (commentMentionCursorIndex === null) return;
+        const before = commentText.slice(0, commentMentionCursorIndex);
+        const after = commentText.slice(commentMentionCursorIndex + (commentMentionQuery || '').length);
+        setCommentText(`${before}${name} ${after}`);
+        setCommentMentionQuery(null);
+        setCommentMentionCursorIndex(null);
+    };
+
+    const handleSendComment = () => {
+        if (!commentText.trim()) return;
+
+        // Determine user name
+        let userName = "Me";
+        if (defaultGrantId && grants.length > 0) {
+            const grant = grants.find(g => g.id === defaultGrantId);
+            if (grant) {
+                userName = grant.name || grant.email.split('@')[0];
+            }
+        }
+
+        // Send to Teams Chat (Right Column)
+        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: commentText, time: "Just now" }]);
+        setCommentText("");
     };
 
     // Send Email Logic
@@ -940,98 +994,163 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                 </div>
 
                 {/* DRAFT & COMPOSER AREA */}
-                <div className="bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+                <div className="bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] relative">
 
-                    {/* Editable Draft Header */}
-                    <div className="bg-gray-50 border-b border-gray-200 p-3 px-4">
-                        <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
-                            <Users size={10} /> <span className="font-bold text-gray-700">Shared draft</span>
-                        </div>
-                        <div className="grid gap-2">
-                            {/* From Selector */}
-                            <div className="flex items-center gap-2">
-                                <label className="w-8 text-xs text-gray-500">From:</label>
-                                <select
-                                    className="bg-white border border-gray-300 text-gray-700 text-xs px-2 py-0.5 rounded outline-none focus:border-blue-500"
-                                    value={defaultGrantId || ""}
-                                    onChange={(e) => { /* Logic to update default grant locally or just for this draft could go here */ }}
+                    {!isComposing ? (
+                        /* INTERNAL COMMENT BOX VIEW */
+                        <div className="p-4">
+                            <div className="flex gap-2 mb-4">
+                                <button
+                                    onClick={() => setIsComposing(true)}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
                                 >
-                                    {grants.map(g => (
-                                        <option key={g.id} value={g.id}>{g.email}</option>
-                                    ))}
-                                </select>
+                                    <Reply size={16} /> Reply
+                                </button>
+                                <button
+                                    onClick={() => setIsComposing(true)}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
+                                >
+                                    <ReplyAll size={16} /> Reply all
+                                </button>
                             </div>
 
-                            {/* Editable To */}
-                            <div className="flex items-center gap-2">
-                                <label className="w-8 text-xs text-gray-500">To:</label>
-                                <div className="flex flex-wrap gap-1 flex-1 items-center">
-                                    {toField.map((email, i) => (
-                                        <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
-                                            {email} <button onClick={() => setToField(toField.filter(e => e !== email))}><X size={10} /></button>
-                                        </div>
-                                    ))}
-                                    <input
-                                        className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
-                                        placeholder="Add recipient..."
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value) {
-                                                setToField([...toField, e.target.value]);
-                                                e.target.value = '';
-                                            }
-                                        }}
-                                    />
+                            <div className="bg-gray-50 rounded-lg border border-gray-200 p-1 relative">
+                                <textarea
+                                    className="w-full min-h-[60px] bg-transparent text-sm outline-none resize-none placeholder:text-gray-500 p-2"
+                                    placeholder="Add internal comment"
+                                    value={commentText}
+                                    onChange={handleCommentInput}
+                                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendComment())}
+                                />
+                                <div className="flex justify-between items-center px-2 py-1 border-t border-gray-200 mt-1">
+                                    <div className="text-[10px] text-gray-500 font-medium">
+                                        Comment will be visible to teammates in <span className="font-bold text-gray-700">1. Sales Support- (Triage)</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-gray-400">
+                                        <Paperclip size={16} className="hover:text-gray-600 cursor-pointer" />
+                                        <AtSign size={16} className="hover:text-gray-600 cursor-pointer" />
+                                        <SmileIcon size={16} className="hover:text-gray-600 cursor-pointer" />
+                                        <div className="h-4 w-px bg-gray-300"></div>
+                                        <Maximize2 size={14} className="hover:text-gray-600 cursor-pointer" />
+                                    </div>
                                 </div>
-                                <div className="text-[10px] text-gray-400 flex gap-2">
-                                    <span className="cursor-pointer hover:text-gray-600" onClick={() => { /* Toggle Cc logic */ }}>Cc</span>
-                                    <span className="cursor-pointer hover:text-gray-600">Bcc</span>
-                                </div>
-                            </div>
 
-                            {/* Editable Cc (Always visible for now as per request to be modifiable) */}
-                            <div className="flex items-center gap-2">
-                                <label className="w-8 text-xs text-gray-500">Cc:</label>
-                                <div className="flex flex-wrap gap-1 flex-1 items-center">
-                                    {ccField.map((email, i) => (
-                                        <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
-                                            {email} <button onClick={() => setCcField(ccField.filter(e => e !== email))}><X size={10} /></button>
-                                        </div>
-                                    ))}
-                                    <input
-                                        className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
-                                        placeholder="Add Cc..."
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value) {
-                                                setCcField([...ccField, e.target.value]);
-                                                e.target.value = '';
-                                            }
-                                        }}
-                                    />
-                                </div>
+                                {/* Comment Mention Popover */}
+                                {commentMentionQuery !== null && commentFilteredGrants.length > 0 && (
+                                    <div className="absolute bottom-full left-0 mb-1 w-64 bg-white border border-gray-200 shadow-lg rounded-md z-20 max-h-40 overflow-y-auto">
+                                        {commentFilteredGrants.map(g => (
+                                            <button key={g.id} onClick={() => insertCommentMention(g.name || g.email)} className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-[10px]">{g.email[0].toUpperCase()}</div>
+                                                <div>
+                                                    <div className="font-bold text-gray-900">{g.name || g.email}</div>
+                                                    <div className="text-[10px] text-gray-500">{g.email}</div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    </div>
-
-                    {/* Reply Editor */}
-                    <div className="p-4">
-                        <div className="flex flex-col gap-2">
-                            <textarea className="w-full min-h-[100px] text-sm outline-none resize-none placeholder:text-gray-400" placeholder={`Type '/' to insert a message template`} value={pendingReply} onChange={(e) => setPendingReply(e.target.value)} />
-                            <div className="flex justify-between items-center pt-2">
-                                <div className="flex gap-3 text-gray-400">
-                                    <span className="text-sm font-serif font-bold hover:text-gray-600 cursor-pointer">Aa</span>
-                                    <Paperclip size={16} className="hover:text-gray-600 cursor-pointer" />
-                                    <SmileIcon size={16} className="hover:text-gray-600 cursor-pointer" />
-                                    <ImageIcon size={16} className="hover:text-gray-600 cursor-pointer" />
-                                </div>
-                                <div className="relative flex items-center">
-                                    <button type="button" onClick={handleSendReply} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">
-                                        {sendStatus === 'Sending...' ? 'Sending...' : 'Send & archive'}
+                    ) : (
+                        /* EMAIL DRAFT VIEW */
+                        <div>
+                            {/* Editable Draft Header */}
+                            <div className="bg-gray-50 border-b border-gray-200 p-3 px-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                        <Users size={10} /> <span className="font-bold text-gray-700">Shared draft</span>
+                                    </div>
+                                    <button onClick={() => setIsComposing(false)} className="text-gray-400 hover:text-gray-600">
+                                        <X size={14} />
                                     </button>
-                                    <button onClick={() => setSendMenuOpen(!sendMenuOpen)} className="bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-1.5 rounded-r transition-colors"><ChevronDown size={16} /></button>
+                                </div>
+                                <div className="grid gap-2">
+                                    {/* From Selector */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-8 text-xs text-gray-500">From:</label>
+                                        <select
+                                            className="bg-white border border-gray-300 text-gray-700 text-xs px-2 py-0.5 rounded outline-none focus:border-blue-500"
+                                            value={defaultGrantId || ""}
+                                            onChange={(e) => { /* Logic to update default grant locally or just for this draft could go here */ }}
+                                        >
+                                            {grants.map(g => (
+                                                <option key={g.id} value={g.id}>{g.email}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Editable To */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-8 text-xs text-gray-500">To:</label>
+                                        <div className="flex flex-wrap gap-1 flex-1 items-center">
+                                            {toField.map((email, i) => (
+                                                <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                                                    {email} <button onClick={() => setToField(toField.filter(e => e !== email))}><X size={10} /></button>
+                                                </div>
+                                            ))}
+                                            <input
+                                                className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
+                                                placeholder="Add recipient..."
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && e.target.value) {
+                                                        setToField([...toField, e.target.value]);
+                                                        e.target.value = '';
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 flex gap-2">
+                                            <span className="cursor-pointer hover:text-gray-600" onClick={() => { /* Toggle Cc logic */ }}>Cc</span>
+                                            <span className="cursor-pointer hover:text-gray-600">Bcc</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Editable Cc (Always visible for now as per request to be modifiable) */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-8 text-xs text-gray-500">Cc:</label>
+                                        <div className="flex flex-wrap gap-1 flex-1 items-center">
+                                            {ccField.map((email, i) => (
+                                                <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                                                    {email} <button onClick={() => setCcField(ccField.filter(e => e !== email))}><X size={10} /></button>
+                                                </div>
+                                            ))}
+                                            <input
+                                                className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
+                                                placeholder="Add Cc..."
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && e.target.value) {
+                                                        setCcField([...ccField, e.target.value]);
+                                                        e.target.value = '';
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Reply Editor */}
+                            <div className="p-4">
+                                <div className="flex flex-col gap-2">
+                                    <textarea className="w-full min-h-[100px] text-sm outline-none resize-none placeholder:text-gray-400" placeholder={`Type '/' to insert a message template`} value={pendingReply} onChange={(e) => setPendingReply(e.target.value)} />
+                                    <div className="flex justify-between items-center pt-2">
+                                        <div className="flex gap-3 text-gray-400">
+                                            <span className="text-sm font-serif font-bold hover:text-gray-600 cursor-pointer">Aa</span>
+                                            <Paperclip size={16} className="hover:text-gray-600 cursor-pointer" />
+                                            <SmileIcon size={16} className="hover:text-gray-600 cursor-pointer" />
+                                            <ImageIcon size={16} className="hover:text-gray-600 cursor-pointer" />
+                                        </div>
+                                        <div className="relative flex items-center">
+                                            <button type="button" onClick={handleSendReply} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">
+                                                {sendStatus === 'Sending...' ? 'Sending...' : 'Send & archive'}
+                                            </button>
+                                            <button onClick={() => setSendMenuOpen(!sendMenuOpen)} className="bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-1.5 rounded-r transition-colors"><ChevronDown size={16} /></button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
