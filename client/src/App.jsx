@@ -1283,7 +1283,11 @@ const MetalFlowApp = () => {
                 const data = await res.json();
                 console.log("Messages fetched:", data);
 
-                const mappedMessages = data.map(m => ({
+                if (!data.messages || !Array.isArray(data.messages)) {
+                    throw new Error("Invalid messages format");
+                }
+
+                const mappedMessages = data.messages.map(m => ({
                     id: m.id,
                     sender: m.from?.[0]?.email === userEmail ? 'user' : 'customer',
                     name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
