@@ -21,26 +21,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// --- TEMPORARY ADMIN ROUTES ---
-const { Client } = require('pg');
 
-app.post('/api/admin/execute-sql', async (req, res) => {
-    const { sql, connectionString } = req.body;
-    if (!sql || !connectionString) {
-        return res.status(400).json({ error: 'Missing sql or connectionString' });
-    }
-
-    const client = new Client({ connectionString });
-    try {
-        await client.connect();
-        await client.query(sql);
-        await client.end();
-        res.json({ success: true });
-    } catch (error) {
-        console.error('SQL Execution Failed:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
