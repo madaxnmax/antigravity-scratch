@@ -1552,7 +1552,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                             </div>
                                         </div>
                                         <div className="flex-shrink-0">
-                                            {!readOnly && <button onClick={() => onSubmitQuote({ cart, total: 810 })} className="w-full bg-blue-700 hover:bg-blue-600 text-white py-3 rounded-lg font-bold shadow-lg uppercase tracking-wide flex justify-center items-center gap-2 text-sm">Finalize Quote <CheckCircle size={18} /></button>}
+                                            {!readOnly && <button onClick={() => onSubmitQuote({ cart, total: 810, customer: customerName })} className="w-full bg-blue-700 hover:bg-blue-600 text-white py-3 rounded-lg font-bold shadow-lg uppercase tracking-wide flex justify-center items-center gap-2 text-sm">Finalize Quote <CheckCircle size={18} /></button>}
                                         </div>
                                     </div>
                                 </div>
@@ -2114,7 +2114,7 @@ const MetalFlowApp = () => {
                     threadId: activeThreadId,
                     cart: quoteData.cart,
                     total: quoteData.total,
-                    customer: customerName // Note: customerName might be empty here if not synced
+                    customer: quoteData.customer
                 })
             });
             if (res.ok) {
