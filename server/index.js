@@ -531,7 +531,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.7 - Archive Feature');
+    res.send('v5.7.1 - Debug Archive');
 });
 
 app.get('/', (req, res) => {

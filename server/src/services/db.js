@@ -51,6 +51,8 @@ class DatabaseService {
     async updateThreadStatus(threadId, status) {
         if (!this.supabase) return null;
 
+        logger.info(`DatabaseService: Updating thread ${threadId} status to ${status}`);
+
         const { error } = await this.supabase
             .from('threads')
             .update({ status: status })
@@ -88,6 +90,8 @@ class DatabaseService {
     async getThreads(limit = 50, offset = 0, status = null) {
         if (!this.supabase) return [];
 
+        logger.info(`DatabaseService: getThreads called with status=${status}`);
+
         let query = this.supabase
             .from('threads')
             .select('*')
@@ -96,10 +100,6 @@ class DatabaseService {
 
         if (status) {
             query = query.eq('status', status);
-        } else {
-            // Default behavior: if no status requested, maybe return all? 
-            // Or should we default to 'inbox'? 
-            // For now, let's return all if null, but the frontend will likely request 'inbox'.
         }
 
         const { data, error } = await query;
@@ -108,6 +108,7 @@ class DatabaseService {
             logger.error('DatabaseService: Failed to fetch threads', error);
             throw error;
         }
+        logger.info(`DatabaseService: Fetched ${data.length} threads`);
         return data;
     }
 
