@@ -165,6 +165,37 @@ app.get('/nylas/directory', async (req, res) => {
     }
 });
 
+app.post('/nylas/send', async (req, res) => {
+    try {
+        const { grantId, to, cc, bcc, subject, body, replyToMessageId } = req.body;
+
+        if (!grantId) return res.status(400).json({ error: 'Grant ID is required' });
+        if (!to || !to.length) return res.status(400).json({ error: 'To recipient is required' });
+
+        const draft = {
+            subject,
+            body,
+            to: to.map(email => ({ email })),
+            cc: cc ? cc.map(email => ({ email })) : [],
+            bcc: bcc ? bcc.map(email => ({ email })) : [],
+            replyToMessageId
+        };
+
+        logger.info(`Sending email via grant ${grantId}`, { to, subject });
+
+        const sentMessage = await nylas.messages.send({
+            identifier: grantId,
+            requestBody: draft
+        });
+
+        logger.info(`Email sent successfully`, { id: sentMessage.data.id });
+        res.json(sentMessage.data);
+    } catch (error) {
+        logger.error("Nylas Send Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/nylas/threads', async (req, res) => {
     if (!nylas) {
         logger.error('Nylas not configured request failed');

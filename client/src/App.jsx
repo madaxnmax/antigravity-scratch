@@ -544,52 +544,56 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
         }
     };
 
-    const handleSendChat = () => {
-        if (!newChatMsg.trim()) return;
+    // Send Email Logic
+    const handleSendReply = async () => {
+        if (!pendingReply.trim()) return;
+        setSendStatus('Sending...');
 
-        // Determine user name from defaultGrantId
-        let userName = "Me";
-        if (defaultGrantId && grants.length > 0) {
-            const grant = grants.find(g => g.id === defaultGrantId);
-            if (grant) {
-                userName = grant.name || grant.email.split('@')[0];
+        try {
+            // Use defaultGrantId or the first available grant if not set
+            const grantIdToSend = defaultGrantId || (grants.length > 0 ? grants[0].id : null);
+
+            if (!grantIdToSend) {
+                alert("No connected account found to send from.");
+                setSendStatus('Error');
+                return;
             }
+
+            const res = await fetch('/nylas/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    grantId: grantIdToSend,
+                    to: toField,
+                    cc: ccField,
+                    subject: subject,
+                    body: pendingReply,
+                    replyToMessageId: messages.length > 0 ? messages[messages.length - 1].id : undefined // Simplified reply logic
+                })
+            });
+
+            if (!res.ok) throw new Error("Failed to send email");
+
+            const data = await res.json();
+
+            // Optimistically add message
+            setMessages([...messages, {
+                id: Date.now(),
+                sender: 'user',
+                name: 'Me',
+                text: pendingReply,
+                timestamp: new Date().toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            }]);
+            setPendingReply("");
+            setSendStatus('Sent');
+            setTimeout(() => setSendStatus('Resolved'), 2000);
+
+        } catch (err) {
+            console.error("Error sending email:", err);
+            setSendStatus('Error');
+            alert("Failed to send email. Check console for details.");
         }
-
-        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: newChatMsg, time: "Just now" }]);
-        setNewChatMsg("");
     };
-
-    const handleChatInput = (e) => {
-        const val = e.target.value;
-        setNewChatMsg(val);
-
-        // Simple mention detection
-        const lastChar = val.slice(-1);
-        if (lastChar === '@') {
-            setMentionQuery('');
-            setMentionCursorIndex(val.length);
-        } else if (mentionQuery !== null) {
-            if (lastChar === ' ') {
-                setMentionQuery(null);
-            } else {
-                setMentionQuery(val.slice(mentionCursorIndex));
-            }
-        }
-    };
-
-    const insertMention = (name) => {
-        if (mentionCursorIndex === null) return;
-        const before = newChatMsg.slice(0, mentionCursorIndex);
-        const after = newChatMsg.slice(mentionCursorIndex + (mentionQuery || '').length);
-        setNewChatMsg(`${before}${name} ${after}`);
-        setMentionQuery(null);
-        setMentionCursorIndex(null);
-    };
-
-    const filteredGrants = mentionQuery !== null
-        ? grants.filter(g => (g.name || g.email).toLowerCase().includes(mentionQuery.toLowerCase()))
-        : [];
 
     return (
         <div className="flex-1 flex h-screen bg-white overflow-hidden">
@@ -600,8 +604,13 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
                     {/* Top Context: Subject, Customer & Actions */}
                     <div className="flex justify-between items-start mb-4">
-                        <div className="flex flex-col gap-1">
-                            <div className="font-bold text-lg text-gray-900 leading-tight">{thread.subject}</div>
+                        <div className="flex flex-col gap-1 flex-1 mr-4">
+                            {/* Editable Subject */}
+                            <input
+                                className="font-bold text-lg text-gray-900 leading-tight border-b border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full"
+                                value={subject}
+                                onChange={(e) => setSubject(e.target.value)}
+                            />
                             <div className="flex items-center gap-3 text-xs text-gray-500">
                                 <div className="flex items-center gap-1 font-medium text-gray-700"><InboxIcon size={12} /> Parts Quote Request</div>
                                 <div className="flex items-center gap-1"><Hash size={12} /> ATLASFIBRE-117333</div>
@@ -661,7 +670,12 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className={`w-6 h-6 rounded bg-slate-700 text-white flex items-center justify-center text-xs font-bold`}>{msg.name ? msg.name[0] : '?'}</div>
                                         <span className="text-sm font-bold text-gray-900">{msg.name}</span>
-                                        <span className="text-xs text-gray-400 ml-auto">{msg.timestamp}</span>
+                                        {/* Full Timestamp */}
+                                        <span className="text-xs text-gray-400 ml-auto" title={msg.rawDate ? new Date(msg.rawDate * 1000).toLocaleString() : ''}>
+                                            {msg.rawDate
+                                                ? new Date(msg.rawDate * 1000).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                                : msg.timestamp}
+                                        </span>
                                     </div>
                                     <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4 shadow-sm rounded-r-lg">
                                         <div dangerouslySetInnerHTML={{ __html: msg.text }} className="prose prose-sm max-w-none" />
@@ -682,23 +696,65 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                             <Users size={10} /> <span className="font-bold text-gray-700">Shared draft</span>
                         </div>
                         <div className="grid gap-2">
+                            {/* From Selector */}
                             <div className="flex items-center gap-2">
                                 <label className="w-8 text-xs text-gray-500">From:</label>
-                                <div className="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded border border-purple-200 font-medium">sales@atlasfibre.com</div>
+                                <select
+                                    className="bg-white border border-gray-300 text-gray-700 text-xs px-2 py-0.5 rounded outline-none focus:border-blue-500"
+                                    value={defaultGrantId || ""}
+                                    onChange={(e) => { /* Logic to update default grant locally or just for this draft could go here */ }}
+                                >
+                                    {grants.map(g => (
+                                        <option key={g.id} value={g.id}>{g.email}</option>
+                                    ))}
+                                </select>
                             </div>
+
+                            {/* Editable To */}
                             <div className="flex items-center gap-2">
                                 <label className="w-8 text-xs text-gray-500">To:</label>
-                                <div className="flex flex-wrap gap-1 flex-1">
+                                <div className="flex flex-wrap gap-1 flex-1 items-center">
                                     {toField.map((email, i) => (
                                         <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
                                             {email} <button onClick={() => setToField(toField.filter(e => e !== email))}><X size={10} /></button>
                                         </div>
                                     ))}
+                                    <input
+                                        className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
+                                        placeholder="Add recipient..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && e.target.value) {
+                                                setToField([...toField, e.target.value]);
+                                                e.target.value = '';
+                                            }
+                                        }}
+                                    />
                                 </div>
                                 <div className="text-[10px] text-gray-400 flex gap-2">
-                                    <span className="cursor-pointer hover:text-gray-600">Cc</span>
+                                    <span className="cursor-pointer hover:text-gray-600" onClick={() => { /* Toggle Cc logic */ }}>Cc</span>
                                     <span className="cursor-pointer hover:text-gray-600">Bcc</span>
-                                    <span className="cursor-pointer hover:text-gray-600">Subject</span>
+                                </div>
+                            </div>
+
+                            {/* Editable Cc (Always visible for now as per request to be modifiable) */}
+                            <div className="flex items-center gap-2">
+                                <label className="w-8 text-xs text-gray-500">Cc:</label>
+                                <div className="flex flex-wrap gap-1 flex-1 items-center">
+                                    {ccField.map((email, i) => (
+                                        <div key={i} className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">
+                                            {email} <button onClick={() => setCcField(ccField.filter(e => e !== email))}><X size={10} /></button>
+                                        </div>
+                                    ))}
+                                    <input
+                                        className="text-xs bg-transparent outline-none min-w-[100px] flex-1"
+                                        placeholder="Add Cc..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && e.target.value) {
+                                                setCcField([...ccField, e.target.value]);
+                                                e.target.value = '';
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -716,7 +772,9 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                     <ImageIcon size={16} className="hover:text-gray-600 cursor-pointer" />
                                 </div>
                                 <div className="relative flex items-center">
-                                    <button onClick={() => { if (!pendingReply) return; setMessages([...messages, { id: Date.now(), sender: 'user', name: 'Me', text: pendingReply }]); setPendingReply(""); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">Send & archive</button>
+                                    <button onClick={handleSendReply} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm font-medium flex items-center rounded-l border-r border-blue-700 transition-colors">
+                                        {sendStatus === 'Sending...' ? 'Sending...' : 'Send & archive'}
+                                    </button>
                                     <button onClick={() => setSendMenuOpen(!sendMenuOpen)} className="bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-1.5 rounded-r transition-colors"><ChevronDown size={16} /></button>
                                 </div>
                             </div>
