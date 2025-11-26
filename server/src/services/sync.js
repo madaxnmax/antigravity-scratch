@@ -35,7 +35,7 @@ class SyncService {
                     id: thread.id,
                     subject: thread.subject,
                     snippet: thread.snippet,
-                    last_message_timestamp: thread.lastMessageTimestamp,
+                    last_message_timestamp: thread.latestMessageReceivedDate || thread.date, // Fix: Use correct field
                     unread: thread.unread,
                     participants: thread.participants,
                     tags: [] // Nylas v3 doesn't have tags on thread object directly in same way, or we need to fetch folders. Keeping simple for now.

@@ -392,7 +392,7 @@ app.get('/api/audit', async (req, res) => {
                 audit.nylas.raw_sample = nylasRes.data[0];
 
                 audit.nylas.threads = nylasRes.data.map(t => {
-                    const ts = t.last_message_timestamp || t.lastMessageTimestamp || t.date || 0;
+                    const ts = t.latestMessageReceivedDate || t.date || 0; // Fix: Use correct field
                     return {
                         id: t.id,
                         subject: t.subject,
@@ -516,7 +516,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.5 - Audit Raw Debug');
+    res.send('v5.6 - Sync Fix');
 });
 
 app.get('/', (req, res) => {
