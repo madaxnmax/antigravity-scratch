@@ -2106,6 +2106,13 @@ const MetalFlowApp = () => {
     };
 
     const handleSaveQuote = async (quoteData) => {
+        console.log("Saving quote...", { activeThreadId, quoteData });
+
+        if (!activeThreadId || activeThreadId === 'new') {
+            alert("Please select an existing conversation to save the quote.");
+            return;
+        }
+
         try {
             const res = await fetch('/api/quotes', {
                 method: 'POST',
@@ -2120,9 +2127,14 @@ const MetalFlowApp = () => {
             if (res.ok) {
                 setIsQuoteModalOpen(false);
                 setMessageRefreshTrigger(prev => prev + 1);
+            } else {
+                const err = await res.json();
+                console.error("Server error saving quote:", err);
+                alert(`Failed to save quote: ${err.error || 'Unknown error'}`);
             }
         } catch (err) {
             console.error("Failed to save quote", err);
+            alert("Failed to save quote. Check console.");
         }
     };
 
