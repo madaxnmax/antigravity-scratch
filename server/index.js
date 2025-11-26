@@ -582,6 +582,62 @@ app.get('*', (req, res) => {
 
 
 
+// --- Teammates API ---
+app.get('/api/teammates', async (req, res) => {
+    try {
+        const teammates = await dbService.getTeammates();
+        res.json(teammates);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch teammates' });
+    }
+});
+
+app.post('/api/teammates', async (req, res) => {
+    try {
+        const teammate = await dbService.createTeammate(req.body);
+        res.json(teammate);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create teammate' });
+    }
+});
+
+// --- Tags API ---
+app.get('/api/tags', async (req, res) => {
+    try {
+        const tags = await dbService.getTags();
+        res.json(tags);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+});
+
+app.post('/api/tags', async (req, res) => {
+    try {
+        const tag = await dbService.createTag(req.body);
+        res.json(tag);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create tag' });
+    }
+});
+
+app.patch('/api/tags/:id', async (req, res) => {
+    try {
+        const tag = await dbService.updateTag(req.params.id, req.body);
+        res.json(tag);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update tag' });
+    }
+});
+
+app.delete('/api/tags/:id', async (req, res) => {
+    try {
+        await dbService.deleteTag(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete tag' });
+    }
+});
+
 // Start Server
 app.listen(port, () => {
     logger.info(`Server running on port ${port}`);

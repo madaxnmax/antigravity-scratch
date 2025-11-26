@@ -1579,52 +1579,250 @@ class ErrorBoundary extends React.Component {
 }
 
 // --- 4. SETTINGS MODAL ---
+const TeammatesSettings = () => {
+    const [teammates, setTeammates] = useState([]);
+    const [isAdding, setIsAdding] = useState(false);
+    const [newTeammate, setNewTeammate] = useState({ name: '', email: '', role: 'Member' });
+
+    useEffect(() => {
+        fetch('/api/teammates').then(res => res.json()).then(setTeammates).catch(console.error);
+    }, []);
+
+    const handleAdd = async () => {
+        const res = await fetch('/api/teammates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTeammate)
+        });
+        if (res.ok) {
+            const added = await res.json();
+            setTeammates([...teammates, added]);
+            setIsAdding(false);
+            setNewTeammate({ name: '', email: '', role: 'Member' });
+        }
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Teammates</h2>
+                <button onClick={() => setIsAdding(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Add teammate</button>
+            </div>
+
+            {isAdding && (
+                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <input placeholder="Name" className="border p-2 rounded" value={newTeammate.name} onChange={e => setNewTeammate({ ...newTeammate, name: e.target.value })} />
+                        <input placeholder="Email" className="border p-2 rounded" value={newTeammate.email} onChange={e => setNewTeammate({ ...newTeammate, email: e.target.value })} />
+                        <select className="border p-2 rounded" value={newTeammate.role} onChange={e => setNewTeammate({ ...newTeammate, role: e.target.value })}>
+                            <option>Member</option>
+                            <option>Admin</option>
+                        </select>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setIsAdding(false)} className="text-gray-500 hover:text-gray-700">Cancel</button>
+                        <button onClick={handleAdd} className="bg-blue-600 text-white px-3 py-1 rounded">Save</button>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase font-bold text-xs">
+                        <tr>
+                            <th className="px-6 py-3">Name</th>
+                            <th className="px-6 py-3">Team role</th>
+                            <th className="px-6 py-3">Status</th>
+                            <th className="px-6 py-3">Date invited</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {teammates.map(t => (
+                            <tr key={t.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4">
+                                    <div className="font-bold text-gray-900">{t.name}</div>
+                                    <div className="text-gray-500 text-xs">{t.email}</div>
+                                </td>
+                                <td className="px-6 py-4 text-gray-700">{t.role}</td>
+                                <td className="px-6 py-4 text-gray-700">{t.status}</td>
+                                <td className="px-6 py-4 text-gray-500">{t.date_invited ? new Date(t.date_invited).toLocaleDateString() : '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const TagsSettings = () => {
+    const [tags, setTags] = useState([]);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newTag, setNewTag] = useState({ name: '', description: '', color: '#6366f1', show_in_list: true, available_everywhere: true });
+
+    useEffect(() => {
+        fetch('/api/tags').then(res => res.json()).then(setTags).catch(console.error);
+    }, []);
+
+    const handleCreate = async () => {
+        const res = await fetch('/api/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTag)
+        });
+        if (res.ok) {
+            const added = await res.json();
+            setTags([...tags, added]);
+            setIsCreating(false);
+            setNewTag({ name: '', description: '', color: '#6366f1', show_in_list: true, available_everywhere: true });
+        }
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Tags</h2>
+                <button onClick={() => setIsCreating(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700">Create tag</button>
+            </div>
+
+            {isCreating && (
+                <div className="mb-6 bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h3 className="font-bold text-lg mb-4">Create tag</h3>
+                    <div className="space-y-4 max-w-lg">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Name *</label>
+                            <input className="w-full border border-gray-300 rounded-md p-2" value={newTag.name} onChange={e => setNewTag({ ...newTag, name: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Description</label>
+                            <textarea className="w-full border border-gray-300 rounded-md p-2" value={newTag.description} onChange={e => setNewTag({ ...newTag, description: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Color</label>
+                            <div className="flex gap-2">
+                                {['#6366f1', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#8b5cf6'].map(c => (
+                                    <div key={c} onClick={() => setNewTag({ ...newTag, color: c })} className={`w-6 h-6 rounded-full cursor-pointer ${newTag.color === c ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`} style={{ backgroundColor: c }}></div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Show in conversation list</span>
+                            <input type="checkbox" checked={newTag.show_in_list} onChange={e => setNewTag({ ...newTag, show_in_list: e.target.checked })} className="toggle" />
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button onClick={() => setIsCreating(false)} className="text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
+                            <button onClick={handleCreate} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Create</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase font-bold text-xs">
+                        <tr>
+                            <th className="px-6 py-3">Name</th>
+                            <th className="px-6 py-3">Available in</th>
+                            <th className="px-6 py-3">Date created</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {tags.map(t => (
+                            <tr key={t.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 flex items-center gap-3">
+                                    <Tag size={16} color={t.color} />
+                                    <span className="font-bold text-gray-900">{t.name}</span>
+                                </td>
+                                <td className="px-6 py-4 text-gray-700">{t.available_everywhere ? 'Any inbox' : 'Restricted'}</td>
+                                <td className="px-6 py-4 text-gray-500">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGrantId }) => {
+    const [activeTab, setActiveTab] = useState('Teammates');
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-md rounded-lg shadow-xl overflow-hidden">
-                <div className="bg-slate-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                        <Settings size={18} /> Settings
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-                </div>
-                <div className="p-6">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase mb-4">Connected Accounts</h3>
-                    <div className="space-y-3 mb-6">
-                        {grants.map(grant => (
-                            <div key={grant.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                                        {grant.email[0].toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <div className="text-sm font-bold text-gray-900">{grant.email}</div>
-                                        <div className="text-xs text-gray-500 capitalize">{grant.provider}</div>
-                                    </div>
-                                </div>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="defaultGrant"
-                                        checked={defaultGrantId === grant.id}
-                                        onChange={() => setDefaultGrantId(grant.id)}
-                                        className="text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-xs font-medium text-gray-600">Default</span>
-                                </label>
-                            </div>
-                        ))}
-                        {grants.length === 0 && <div className="text-sm text-gray-500 italic">No accounts connected.</div>}
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-8">
+            <div className="bg-white w-full max-w-6xl h-[85vh] rounded-xl shadow-2xl overflow-hidden flex">
+                {/* Sidebar */}
+                <div className="w-64 bg-gray-50 border-r border-gray-200 flex-shrink-0 flex flex-col">
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="font-bold text-xl text-gray-800">Settings</h2>
                     </div>
-                    <button className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 text-sm font-medium flex items-center justify-center gap-2 transition-colors">
-                        <Plus size={16} /> Connect Another Account
-                    </button>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-8">
+                        <div>
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Team management</h3>
+                            <div className="space-y-1">
+                                <button onClick={() => setActiveTab('Teammates')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Teammates' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    <Users size={18} /> Teammates
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Resources</h3>
+                            <div className="space-y-1">
+                                <button onClick={() => setActiveTab('Tags')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Tags' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    <Tag size={18} /> Tags
+                                </button>
+                                <button onClick={() => setActiveTab('Connected Accounts')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Connected Accounts' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    <Mail size={18} /> Connected Accounts
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
-                    <button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm shadow-sm">Done</button>
+
+                {/* Content */}
+                <div className="flex-1 flex flex-col min-w-0 bg-white">
+                    <div className="flex justify-end p-4">
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-8 pb-8">
+                        {activeTab === 'Teammates' && <TeammatesSettings />}
+                        {activeTab === 'Tags' && <TagsSettings />}
+                        {activeTab === 'Connected Accounts' && (
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-6">Connected Accounts</h2>
+                                <div className="space-y-3 mb-6">
+                                    {grants.map(grant => (
+                                        <div key={grant.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                                                    {grant.email[0].toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold text-gray-900">{grant.email}</div>
+                                                    <div className="text-xs text-gray-500 capitalize">{grant.provider}</div>
+                                                </div>
+                                            </div>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="defaultGrant"
+                                                    checked={defaultGrantId === grant.id}
+                                                    onChange={() => setDefaultGrantId(grant.id)}
+                                                    className="text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-xs font-medium text-gray-600">Default</span>
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {grants.length === 0 && <div className="text-sm text-gray-500 italic">No accounts connected.</div>}
+                                </div>
+                                <button className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                                    <Plus size={16} /> Connect Another Account
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

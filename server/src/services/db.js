@@ -197,6 +197,67 @@ class DatabaseService {
         }
         return data;
     }
+
+    // --- Teammates ---
+    async getTeammates() {
+        if (!this.supabase) return [];
+        const { data, error } = await this.supabase.from('teammates').select('*').order('name');
+        if (error) {
+            logger.error('DatabaseService: Failed to get teammates', error);
+            throw error;
+        }
+        return data;
+    }
+
+    async createTeammate(teammate) {
+        if (!this.supabase) return null;
+        const { data, error } = await this.supabase.from('teammates').insert(teammate).select();
+        if (error) {
+            logger.error('DatabaseService: Failed to create teammate', error);
+            throw error;
+        }
+        return data[0];
+    }
+
+    // --- Tags ---
+    async getTags() {
+        if (!this.supabase) return [];
+        const { data, error } = await this.supabase.from('tags').select('*').order('name');
+        if (error) {
+            logger.error('DatabaseService: Failed to get tags', error);
+            throw error;
+        }
+        return data;
+    }
+
+    async createTag(tag) {
+        if (!this.supabase) return null;
+        const { data, error } = await this.supabase.from('tags').insert(tag).select();
+        if (error) {
+            logger.error('DatabaseService: Failed to create tag', error);
+            throw error;
+        }
+        return data[0];
+    }
+
+    async updateTag(id, updates) {
+        if (!this.supabase) return null;
+        const { data, error } = await this.supabase.from('tags').update(updates).eq('id', id).select();
+        if (error) {
+            logger.error('DatabaseService: Failed to update tag', error);
+            throw error;
+        }
+        return data[0];
+    }
+
+    async deleteTag(id) {
+        if (!this.supabase) return null;
+        const { error } = await this.supabase.from('tags').delete().eq('id', id);
+        if (error) {
+            logger.error('DatabaseService: Failed to delete tag', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = new DatabaseService();
