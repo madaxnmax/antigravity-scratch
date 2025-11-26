@@ -1,37 +1,25 @@
 const axios = require('axios');
+const logger = require('./logger');
 
 class PricingService {
     constructor() {
-        // Mock data for now
+        // Mock data for now - explicitly serving dummy data as requested
+        logger.info("Initializing PricingService with MOCK Business Central data");
         this.mockItems = [
-            {
-                ItemNumber: "SHEET-G10-NAT-0.25-36-48",
-                NEMAGrade: "G10",
-                Thicknesses: "0.25",
-                Color: "Natural",
-                WidthIn: "36",
-                LengthIn: "48",
-                MILSpec: "MIL-I-24768/2",
-                BasePrice: 100.00
-            },
-            {
-                ItemNumber: "SHEET-FR4-NAT-0.125-36-48",
-                NEMAGrade: "FR4",
-                Thicknesses: "0.125",
-                Color: "Natural",
-                WidthIn: "36",
-                LengthIn: "48",
-                MILSpec: "MIL-I-24768/27",
-                BasePrice: 80.00
-            },
-            {
-                ItemNumber: "ROD-G10-NAT-1.0-48",
-                NEMAGrade: "G10",
-                Thicknesses: "1.0", // Diameter
-                Color: "Natural",
-                LengthIn: "48",
-                BasePrice: 50.00
-            }
+            // Sheets
+            { ItemNumber: "SHEET-G10-NAT-0.25-36-48", NEMAGrade: "G10", Thicknesses: "0.25", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/2", BasePrice: 100.00 },
+            { ItemNumber: "SHEET-G10-NAT-0.5-36-48", NEMAGrade: "G10", Thicknesses: "0.5", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/2", BasePrice: 180.00 },
+            { ItemNumber: "SHEET-FR4-NAT-0.125-36-48", NEMAGrade: "FR4", Thicknesses: "0.125", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/27", BasePrice: 80.00 },
+            { ItemNumber: "SHEET-FR4-BLK-0.25-36-48", NEMAGrade: "FR4", Thicknesses: "0.25", Color: "Black", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/27", BasePrice: 110.00 },
+            { ItemNumber: "SHEET-G11-NAT-0.25-36-48", NEMAGrade: "G11", Thicknesses: "0.25", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/3", BasePrice: 150.00 },
+
+            // Rods
+            { ItemNumber: "ROD-G10-NAT-0.5-48", NEMAGrade: "G10", Thicknesses: "0.5", Color: "Natural", LengthIn: "48", BasePrice: 20.00 },
+            { ItemNumber: "ROD-G10-NAT-1.0-48", NEMAGrade: "G10", Thicknesses: "1.0", Color: "Natural", LengthIn: "48", BasePrice: 50.00 },
+            { ItemNumber: "ROD-FR4-BLK-1.0-48", NEMAGrade: "FR4", Thicknesses: "1.0", Color: "Black", LengthIn: "48", BasePrice: 55.00 },
+
+            // Tubes (Placeholder)
+            { ItemNumber: "TUBE-G10-NAT-1.0-0.5-48", NEMAGrade: "G10", Thicknesses: "0.25", Color: "Natural", LengthIn: "48", BasePrice: 40.00 }
         ];
     }
 
