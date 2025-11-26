@@ -1848,7 +1848,6 @@ const MetalFlowApp = () => {
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
     const [newCount, setNewCount] = useState(0);
-    const [quoteType, setQuoteType] = useState('Sheet');
 
 
     // Fetch grants on mount
@@ -2220,46 +2219,18 @@ const MetalFlowApp = () => {
             />
 
             {/* Modals */}
-            {isQuoteModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
-                            <h2 className="text-lg font-bold flex items-center gap-2"><Plus size={20} className="text-blue-600" /> New Quote Configuration</h2>
-                            <button onClick={() => setIsQuoteModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                <div className="space-y-6">
-                                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                                        <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide border-b border-gray-100 pb-2">Product Selection</h3>
-                                        <div className="grid grid-cols-3 gap-3 mb-4">
-                                            {['Sheet', 'Rod', 'Tube', 'Cut Piece/Sand', 'Cut Rod', 'Cut Tube', 'Washer'].map(type => (
-                                                <button
-                                                    key={type}
-                                                    onClick={() => setQuoteType(type)}
-                                                    className={`px-3 py-2 rounded text-sm font-medium transition-all border ${quoteType === type ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
-                                                >
-                                                    {type}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <ConfigForm type={quoteType} formState={formState} onChange={handleFormChange} />
-                                    </div>
-                                </div>
-                                <div className="space-y-6">
-                                    <OptimizationResult result={optimizationResult} onOptimize={handleOptimize} isOptimizing={isOptimizing} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4 border-t border-gray-200 bg-white flex justify-end gap-3">
-                            <button onClick={() => setIsQuoteModalOpen(false)} className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded transition-colors">Cancel</button>
-                            <button className="px-5 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-sm transition-colors flex items-center gap-2">
-                                <CheckCircle size={18} /> Generate Quote
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Modals */}
+            <QuoteBuilder
+                isOpen={isQuoteModalOpen}
+                onClose={() => setIsQuoteModalOpen(false)}
+                productContext={activeProductContext}
+                activeThread={activeThread}
+                onSubmitQuote={(quote) => {
+                    console.log("Quote Submitted:", quote);
+                    setIsQuoteModalOpen(false);
+                    // Optionally refresh threads or add a message
+                }}
+            />
 
             {isSettingsOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
