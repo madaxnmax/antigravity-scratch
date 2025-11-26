@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const Nylas = require('nylas');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const logger = require('./src/services/logger');
 
 const app = express();
