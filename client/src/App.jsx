@@ -1064,7 +1064,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: activeType.split('/')[0].replace('Cut ', ''), // Normalize type
+                    type: (activeType === 'Cut Piece/Sand') ? 'Sheet' : activeType.split('/')[0].replace('Cut ', ''), // Normalize type
                     specs: {
                         grade: formState.grade,
                         color: formState.color,
