@@ -1661,7 +1661,9 @@ const MetalFlowApp = () => {
                 stocks,
                 requirements,
                 kerf,
-                trim
+                // OptiCutter 2D specific params
+                minDistBetweenCuts: 0,
+                minDistToEdges: 0
             };
 
             console.log("Sending optimization payload:", payload);
