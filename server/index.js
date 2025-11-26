@@ -116,7 +116,10 @@ app.get('/nylas/threads', async (req, res) => {
             queryParams: { limit: parseInt(limit) }
         });
 
-        res.json(threads.data);
+        res.json({
+            threads: threads.data,
+            userEmail: firstGrant.email
+        });
     } catch (error) {
         logger.error("Nylas Threads Error:", error);
         res.status(500).json({ error: error.message });
@@ -133,7 +136,7 @@ app.get('/nylas/thread/:id', async (req, res) => {
             identifier: firstGrant.id,
             queryParams: {
                 threadId: req.params.id,
-                limit: 10
+                limit: 50 // Increased limit for full history
             }
         });
 

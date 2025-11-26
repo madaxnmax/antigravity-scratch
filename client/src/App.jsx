@@ -1219,13 +1219,13 @@ const MetalFlowApp = () => {
             const data = await res.json();
             console.log("Threads fetched:", data);
 
-            // Set user email from the first thread if available (simplified logic)
-            if (data.length > 0 && data[0].participants) {
-                const me = data[0].participants.find(p => p.email === 'max@atlasfibre.com') || data[0].participants[0];
-                setUserEmail(me.email);
+            // Handle new response structure { threads: [], userEmail: string }
+            const threadsData = data.threads || data; // Fallback for safety
+            if (data.userEmail) {
+                setUserEmail(data.userEmail);
             }
 
-            const mappedThreads = data.map(t => ({
+            const mappedThreads = threadsData.map(t => ({
                 id: t.id,
                 subject: t.subject,
                 customer: "Unknown Customer", // Placeholder
@@ -1296,8 +1296,12 @@ const MetalFlowApp = () => {
                     name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
                     text: m.body, // Use full HTML body
                     timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    quoteId: null // Add logic if needed
+                    rawDate: m.date // Store raw date for sorting
                 }));
+
+                // Sort messages chronologically (Oldest -> Newest)
+                mappedMessages.sort((a, b) => a.rawDate - b.rawDate);
+
                 setCurrentMessages(mappedMessages);
             } catch (err) {
                 console.error("Error fetching messages:", err);
