@@ -2375,8 +2375,8 @@ const MetalFlowApp = () => {
             <ThreadView
                 thread={activeThread}
                 onOpenQuote={handleOpenQuote}
-                onViewQuote={(id) => alert(`View Quote ${id}`)}
-                onCloneQuote={(id) => alert(`Clone Quote ${id}`)}
+                onViewQuote={onViewQuote}
+                onCloneQuote={onCloneQuote}
                 pendingReply={pendingReply}
                 setPendingReply={setPendingReply}
                 messages={currentMessages}
