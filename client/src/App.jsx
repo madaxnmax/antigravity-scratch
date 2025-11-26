@@ -720,7 +720,10 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, 
                 setToField(draft?.to || (thread.to && thread.to.length > 0 ? thread.to : (thread.senderEmail ? [thread.senderEmail] : [])));
                 setCcField(draft?.cc || thread.cc || []);
                 setPendingReply(draft?.body || "");
-                setIsComposing(!!draft?.body || !!draft?.to?.length || !!draft?.cc?.length); // If there's any draft content, show composer
+
+                // FIX: Only open composer if there is actual draft content (body), not just recipients
+                // This prevents the reply window from auto-opening just because we pre-populated 'To' from the thread
+                setIsComposing(!!draft?.body && draft.body.length > 0);
 
                 // Mark this thread as loaded so we can safely save changes
                 lastLoadedThreadId.current = thread.id;

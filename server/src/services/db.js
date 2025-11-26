@@ -183,19 +183,26 @@ class DatabaseService {
         if (status) {
             if (status === 'inbox') {
                 // For inbox, include 'inbox', 'Open' (legacy), and null (legacy/default)
-                query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
+                // BUT if a specific channel is requested, we might want to see all messages in that channel regardless of status (unless status is explicitly 'done' or 'trash')
 
-                // Filter by channel if provided (only for inbox)
                 if (channel) {
                     if (channel === 'Inbox') {
-                        query = query.or('channel.eq.Inbox,channel.is.null');
+                        query = query.or('channel.eq.Inbox,channel.is.null').or('status.eq.inbox,status.eq.Open,status.is.null');
                     } else {
-                        query = query.eq('channel', channel);
+                        // For specific channels (e.g. 'Sales'), show everything in that channel that isn't explicitly trash/spam
+                        // This fixes the issue where messages might be hidden if they don't have 'inbox' status
+                        query = query.eq('channel', channel).neq('status', 'trash').neq('status', 'spam');
                     }
+                } else {
+                    // No channel specified, just show inbox status
+                    query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
                 }
             } else {
                 query = query.eq('status', status);
             }
+        } else if (channel) {
+            // If only channel is provided without status (though UI usually sends status=inbox)
+            query = query.eq('channel', channel);
         }
 
         const { data, error } = await query;
