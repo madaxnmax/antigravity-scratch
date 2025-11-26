@@ -1483,6 +1483,7 @@ const MetalFlowApp = () => {
     const [threads, setThreads] = useState([]);
     const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Settings Modal State
+    const [isComposeOpen, setIsComposeOpen] = useState(false); // Compose Modal State
     const [activeProductContext, setActiveProductContext] = useState('Sheet');
     const [quoteStep, setQuoteStep] = useState(1);
     const [pendingReply, setPendingReply] = useState("");
