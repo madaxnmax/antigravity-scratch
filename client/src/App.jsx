@@ -1227,6 +1227,7 @@ const MetalFlowApp = () => {
 
             const mappedThreads = threadsData.map(t => ({
                 id: t.id,
+                grantId: t.grantId, // Preserve grantId
                 subject: t.subject,
                 customer: "Unknown Customer", // Placeholder
                 customerInitials: "??",
@@ -1279,9 +1280,13 @@ const MetalFlowApp = () => {
                 return;
             }
 
+            // Find active thread to get grantId
+            const currentThread = threads.find(t => t.id === activeThreadId);
+            const grantIdParam = currentThread?.grantId ? `?grantId=${currentThread.grantId}` : '';
+
             try {
                 console.log(`Fetching messages for thread ${activeThreadId}...`);
-                const res = await fetch(`/nylas/thread/${activeThreadId}`);
+                const res = await fetch(`/nylas/thread/${activeThreadId}${grantIdParam}`);
                 if (!res.ok) throw new Error('Failed to fetch messages');
                 const data = await res.json();
                 console.log("Messages fetched:", data);

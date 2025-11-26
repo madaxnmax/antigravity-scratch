@@ -104,21 +104,45 @@ app.get('/nylas/threads', async (req, res) => {
         logger.error('Nylas not configured request failed');
         return res.status(500).json({ error: 'Nylas not configured' });
     }
-
     try {
-        const grants = await nylas.grants.list();
-        const firstGrant = grants.data[0];
-        if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
-
         const limit = req.query.limit || 10;
-        const threads = await nylas.threads.list({
-            identifier: firstGrant.id,
-            queryParams: { limit: parseInt(limit) }
-        });
+        const grants = await nylas.grants.list();
+
+        if (!grants.data || grants.data.length === 0) {
+            return res.json({ threads: [], userEmail: null });
+        }
+
+        const allThreads = [];
+        const primaryEmail = grants.data[0].email;
+
+        // Fetch threads for each grant
+        for (const grant of grants.data) {
+            try {
+                const threads = await nylas.threads.list({
+                    identifier: grant.id,
+                    queryParams: { limit: parseInt(limit) }
+                });
+
+                // Attach grantId and accountEmail to each thread
+                const threadsWithGrant = threads.data.map(t => ({
+                    ...t,
+                    grantId: grant.id,
+                    accountEmail: grant.email
+                }));
+
+                allThreads.push(...threadsWithGrant);
+            } catch (err) {
+                logger.error(`Error fetching threads for grant ${grant.id}:`, err);
+                // Continue to next grant even if one fails
+            }
+        }
+
+        // Sort combined threads by last_message_timestamp (descending)
+        allThreads.sort((a, b) => b.last_message_timestamp - a.last_message_timestamp);
 
         res.json({
-            threads: threads.data,
-            userEmail: firstGrant.email
+            threads: allThreads,
+            userEmail: primaryEmail // Default to first grant's email for "Me" identification
         });
     } catch (error) {
         logger.error("Nylas Threads Error:", error);
@@ -127,13 +151,24 @@ app.get('/nylas/threads', async (req, res) => {
 });
 
 app.get('/nylas/thread/:id', async (req, res) => {
+    if (!nylas) {
+        logger.error('Nylas not configured request failed');
+        return res.status(500).json({ error: 'Nylas not configured' });
+    }
     try {
-        const grants = await nylas.grants.list();
-        const firstGrant = grants.data[0];
-        if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
+        const grantId = req.query.grantId;
+        let targetGrantId = grantId;
+
+        if (!targetGrantId) {
+            // Fallback to first grant if no grantId provided (backward compatibility)
+            const grants = await nylas.grants.list();
+            const firstGrant = grants.data[0];
+            if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
+            targetGrantId = firstGrant.id;
+        }
 
         const messages = await nylas.messages.list({
-            identifier: firstGrant.id,
+            identifier: targetGrantId,
             queryParams: {
                 threadId: req.params.id,
                 limit: 50 // Increased limit for full history
