@@ -748,9 +748,38 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                 return;
             }
 
+            // Smart Recipient Logic: If toField is empty, derive from last message or thread
+            let finalTo = toField;
+            if (!finalTo || finalTo.length === 0) {
+                console.log("SYSTEM ACTION: toField is empty, attempting to derive recipients...");
+                if (messages && messages.length > 0) {
+                    const lastMsg = messages[messages.length - 1];
+                    // If last message has 'from' field (and it's not me/system), reply to them
+                    if (lastMsg.from && Array.isArray(lastMsg.from)) {
+                        // Filter out 'System' or my own email if possible (simplified here)
+                        finalTo = lastMsg.from.map(f => f.email || f);
+                    }
+                }
+
+                // Fallback to thread sender if still empty
+                if ((!finalTo || finalTo.length === 0) && thread && thread.senderEmail) {
+                    finalTo = [thread.senderEmail];
+                }
+            }
+
+            // Ensure finalTo is an array of strings
+            finalTo = (finalTo || []).map(t => typeof t === 'object' ? t.email : t).filter(Boolean);
+
+            if (!finalTo || finalTo.length === 0) {
+                console.error("SYSTEM ACTION: Could not determine 'To' recipient.");
+                alert("Please add a recipient in the 'To' field.");
+                setSendStatus('Error');
+                return;
+            }
+
             const payload = {
                 grantId: grantIdToSend,
-                to: toField,
+                to: finalTo,
                 cc: ccField,
                 subject: subject,
                 body: pendingReply,
