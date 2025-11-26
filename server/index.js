@@ -531,7 +531,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.7.3 - Fix Inbox Filter');
+    res.send('v5.7.4 - Fix Inbox Filter Open');
 });
 
 app.get('/', (req, res) => {

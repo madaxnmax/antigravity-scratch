@@ -100,8 +100,8 @@ class DatabaseService {
 
         if (status) {
             if (status === 'inbox') {
-                // For inbox, include 'inbox' AND null (legacy/default)
-                query = query.or('status.eq.inbox,status.is.null');
+                // For inbox, include 'inbox', 'Open' (legacy), and null (legacy/default)
+                query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
             } else {
                 query = query.eq('status', status);
             }
