@@ -1058,6 +1058,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             length = parseFloat(formState.length) || 0;
         }
 
+        console.log("AddToCart Debug:", { activeType, thickness, width, length, formState });
+
         try {
             const res = await fetch('/api/pricing/calculate', {
                 method: 'POST',
@@ -1096,14 +1098,12 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 id: Date.now(),
                 type: activeType,
                 desc: (activeType === 'Cut Piece/Sand')
-                    ? `${formState.grade} ${formState.color} ${thickness}" x ${width}" x ${length}"`
+                    ? `${formState.grade} ${formState.color} ${formatDims(itemForDims, activeType)}`
                     : (pricingData.description || `${formState.grade} ${formState.color} ${activeType}`),
-                qty: parseInt(formState.quantity) || 1,
+                qty: parseInt(formState.quantity, 10) || 1,
                 specs: {
                     mat: `${formState.grade}/${formState.color}`,
-                    dims: (activeType === 'Cut Piece/Sand')
-                        ? `${thickness}" x ${width}" x ${length}"`
-                        : (pricingData.description || `${thickness}" x ${width}" x ${length}"`)
+                    dims: formatDims(itemForDims, activeType)
                 },
                 price: pricingData.unitPrice,
                 total: pricingData.totalPrice,
@@ -1569,7 +1569,9 @@ const MetalFlowApp = () => {
     }, [activeThreadId, userEmail]);
 
 
-    const activeThread = threads.find(t => t.id === activeThreadId) || threads[0];
+    const activeThread = activeThreadId === 'new'
+        ? { id: 'new', subject: '', to: [], messages: [], tags: [], senderEmail: '', status: 'New' }
+        : (threads.find(t => t.id === activeThreadId) || threads[0]);
 
     const handleOpenQuote = (context) => {
         console.log("Opening Quote Modal with context:", context);
@@ -1683,11 +1685,9 @@ const MetalFlowApp = () => {
 
     const handleCompose = () => {
         console.log("Composing new message...");
-        setActiveThreadId(null);
+        setActiveThreadId('new');
         setCurrentMessages([]);
         setActiveChannel('Inbox');
-        // Optionally set a flag to indicate "New Message" mode if needed, 
-        // but activeThreadId === null effectively does this in ThreadView
     };
 
     return (
