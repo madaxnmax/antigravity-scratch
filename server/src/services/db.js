@@ -38,6 +38,10 @@ class DatabaseService {
             threadData.status = thread.status;
         }
 
+        if (typeof thread.is_new !== 'undefined') {
+            threadData.is_new = thread.is_new;
+        }
+
         const { error } = await this.supabase
             .from('threads')
             .upsert(threadData, { onConflict: 'id' });
@@ -62,6 +66,38 @@ class DatabaseService {
             logger.error('DatabaseService: Failed to update thread status', { error, threadId });
             throw error;
         }
+    }
+
+    async updateThreadIsNew(threadId, isNew) {
+        if (!this.supabase) return null;
+
+        logger.info(`DatabaseService: Updating thread ${threadId} is_new to ${isNew}`);
+
+        const { error } = await this.supabase
+            .from('threads')
+            .update({ is_new: isNew })
+            .eq('id', threadId);
+
+        if (error) {
+            logger.error('DatabaseService: Failed to update thread is_new', { error, threadId });
+            throw error;
+        }
+    }
+
+    async getNewThreadCount() {
+        if (!this.supabase) return 0;
+
+        const { count, error } = await this.supabase
+            .from('threads')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_new', true)
+            .or('status.eq.inbox,status.eq.Open,status.is.null'); // Only count new threads in inbox
+
+        if (error) {
+            logger.error('DatabaseService: Failed to get new thread count', error);
+            return 0;
+        }
+        return count;
     }
 
     async upsertMessage(message) {

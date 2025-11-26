@@ -435,6 +435,16 @@ app.get('/api/audit', async (req, res) => {
     }
 });
 
+// Get New Thread Count
+app.get('/api/threads/count', async (req, res) => {
+    try {
+        const count = await dbService.getNewThreadCount();
+        res.json({ count });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch thread count' });
+    }
+});
+
 // Get Threads from DB
 app.get('/api/threads', async (req, res) => {
     try {
@@ -446,13 +456,19 @@ app.get('/api/threads', async (req, res) => {
     }
 });
 
-// Update Thread (e.g. Archive)
+// Update Thread (e.g. Archive or Mark as New/Read)
 app.patch('/api/threads/:id', async (req, res) => {
     try {
-        const { status } = req.body;
-        if (!status) return res.status(400).json({ error: 'Status is required' });
+        const { status, is_new } = req.body;
 
-        await dbService.updateThreadStatus(req.params.id, status);
+        if (status) {
+            await dbService.updateThreadStatus(req.params.id, status);
+        }
+
+        if (typeof is_new !== 'undefined') {
+            await dbService.updateThreadIsNew(req.params.id, is_new);
+        }
+
         res.json({ success: true });
     } catch (error) {
         logger.error('Failed to update thread', error);
@@ -531,7 +547,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.7.4 - Fix Inbox Filter Open');
+    res.send('v5.8 - New Message Logic');
 });
 
 app.get('/', (req, res) => {

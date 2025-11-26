@@ -34,6 +34,7 @@ class SyncService {
             // Note: For efficiency, we could fetch all IDs in one go, but loop is fine for 50 items.
             for (const thread of threads.data) {
                 let statusToSet = undefined;
+                let isNew = undefined;
 
                 // Check if we need to unarchive (move to inbox)
                 try {
@@ -46,19 +47,22 @@ class SyncService {
                     const newTimestamp = thread.latestMessageReceivedDate || thread.date || 0;
 
                     if (existing.data) {
-                        // If new message arrived (timestamp increased), move to inbox
+                        // If new message arrived (timestamp increased), move to inbox AND mark as new
                         if (newTimestamp > existing.data.last_message_timestamp) {
                             statusToSet = 'inbox';
-                            logger.info(`SyncService: Unarchiving thread ${thread.id} due to new message`);
+                            isNew = true;
+                            logger.info(`SyncService: Unarchiving and marking new thread ${thread.id}`);
                         }
-                        // Else: keep existing status (undefined means db.upsertThread won't touch it)
+                        // Else: keep existing status
                     } else {
-                        // New thread: default to inbox
+                        // New thread: default to inbox AND mark as new
                         statusToSet = 'inbox';
+                        isNew = true;
                     }
                 } catch (err) {
                     // If error (e.g. not found), assume new
                     statusToSet = 'inbox';
+                    isNew = true;
                 }
 
                 await db.upsertThread({
@@ -69,7 +73,8 @@ class SyncService {
                     unread: thread.unread,
                     participants: thread.participants,
                     tags: [], // Nylas v3 doesn't have tags on thread object directly in same way, or we need to fetch folders. Keeping simple for now.
-                    status: statusToSet
+                    status: statusToSet,
+                    is_new: isNew
                 });
 
                 // Sync messages for this thread immediately
