@@ -1509,7 +1509,7 @@ const MetalFlowApp = () => {
 
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} />
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { console.log("Opening settings"); setIsSettingsOpen(true); }} />
             <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} onRefresh={refreshThreads} />
             <ThreadView
                 thread={activeThread}

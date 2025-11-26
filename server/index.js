@@ -122,18 +122,43 @@ app.get('/nylas/directory', async (req, res) => {
             return res.status(400).json({ error: 'Grant ID is required' });
         }
 
-        // Search contacts in the organization domain
-        // Note: 'source: domain' might require specific scopes or paid Nylas features
-        const contacts = await nylas.contacts.list({
-            identifier: grantId,
-            queryParams: {
-                source: 'domain',
-                email: query // Filter by email/name if supported, or filter locally
-            }
-        });
+        // Search contacts in the organization domain and address book
+        // Note: 'source: domain' might require specific scopes. We'll try both or fallback.
+        // Nylas v3 might not support multiple sources in one request depending on the provider.
+        // We'll try fetching from 'domain' first, if empty/fails, try 'address_book'.
 
-        logger.info(`Fetched directory contacts for grant ${grantId}`, { count: contacts.data.length });
-        res.json(contacts.data);
+        let contacts = [];
+        try {
+            const domainContacts = await nylas.contacts.list({
+                identifier: grantId,
+                queryParams: {
+                    source: 'domain',
+                    email: query
+                }
+            });
+            contacts = [...contacts, ...domainContacts.data];
+        } catch (err) {
+            logger.warn(`Failed to fetch domain contacts for grant ${grantId}: ${err.message}`);
+        }
+
+        try {
+            const addressBookContacts = await nylas.contacts.list({
+                identifier: grantId,
+                queryParams: {
+                    source: 'address_book',
+                    email: query
+                }
+            });
+            contacts = [...contacts, ...addressBookContacts.data];
+        } catch (err) {
+            logger.warn(`Failed to fetch address_book contacts for grant ${grantId}: ${err.message}`);
+        }
+
+        // Deduplicate by email
+        const uniqueContacts = Array.from(new Map(contacts.map(c => [c.email, c])).values());
+
+        logger.info(`Fetched directory contacts for grant ${grantId}`, { count: uniqueContacts.length });
+        res.json(uniqueContacts);
     } catch (error) {
         logger.error("Nylas Directory Error:", error);
         res.status(500).json({ error: error.message });
