@@ -1526,7 +1526,20 @@ const MetalFlowApp = () => {
             const res = await fetch('/api/threads');
             if (res.ok) {
                 const data = await res.json();
-                setThreads(data);
+
+                // Map DB threads to UI format (adding 'messages' array for preview)
+                const mappedThreads = data.map(t => ({
+                    ...t,
+                    messages: [{
+                        id: 'latest', // Placeholder
+                        sender: 'customer', // Assume customer for preview
+                        name: t.participants?.[0]?.name || 'Unknown',
+                        text: t.snippet || '',
+                        timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+                    }]
+                }));
+
+                setThreads(mappedThreads);
             }
         } catch (err) {
             console.error("Error fetching threads:", err);
