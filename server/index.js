@@ -449,7 +449,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v3 - Supabase Admin');
+    res.send('v4 - Supabase Fix');
 });
 
 app.get('/', (req, res) => {
