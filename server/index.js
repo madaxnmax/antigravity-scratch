@@ -449,7 +449,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.2 - Auto Sync Retry');
+    res.send('v5.3 - Sync Debug');
 });
 
 app.get('/', (req, res) => {

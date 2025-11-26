@@ -18,7 +18,7 @@ class SyncService {
         }
     }
 
-    async syncThreads(grantId, limit = 10) {
+    async syncThreads(grantId, limit = 50) {
         if (!this.nylas) return;
 
         try {
@@ -27,6 +27,8 @@ class SyncService {
                 identifier: grantId,
                 queryParams: { limit }
             });
+
+            logger.info(`SyncService: Fetched ${threads.data.length} threads. Subjects: ${threads.data.map(t => t.subject).join(', ')}`);
 
             for (const thread of threads.data) {
                 await db.upsertThread({
