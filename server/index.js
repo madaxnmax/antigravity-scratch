@@ -435,10 +435,47 @@ app.get('/api/audit', async (req, res) => {
             const foundInDb = audit.supabase.threads.find(t => t.id === topNylasId);
             audit.match = !!foundInDb;
         }
-
         res.json(audit);
     } catch (error) {
         res.status(500).json({ error: 'Audit failed', details: error.message });
+    }
+});
+
+// Get Messages for a Thread
+app.get('/api/messages', async (req, res) => {
+    try {
+        const { threadId } = req.query;
+        if (!threadId) {
+            return res.status(400).json({ error: 'threadId is required' });
+        }
+
+        // Fetch from Nylas directly for now to ensure we have latest
+        // Or fetch from DB if we trust sync. Let's use Nylas for consistency with original implementation
+        // But wait, we want to use our DB cache if possible.
+        // Let's check DB first? No, original app likely used Nylas proxy.
+        // Let's use the Nylas client.
+
+        // Actually, looking at sync service, we are syncing messages to DB.
+        // But for the UI, let's stick to what was likely there or a robust fallback.
+        // If we use Nylas SDK:
+
+        const grantId = req.query.grantId || process.env.NYLAS_GRANT_ID; // Fallback
+
+        // We need to find the grant ID for the thread if not provided? 
+        // For now, let's assume we can fetch from DB which is safer/faster if synced.
+
+        const { data: messages, error } = await dbService.supabase
+            .from('messages')
+            .select('*')
+            .eq('thread_id', threadId)
+            .order('date', { ascending: true });
+
+        if (error) throw error;
+
+        res.json(messages);
+    } catch (error) {
+        console.error("Error fetching messages:", error);
+        res.status(500).json({ error: 'Failed to fetch messages' });
     }
 });
 

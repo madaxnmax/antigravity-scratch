@@ -1721,7 +1721,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                     qty: parseInt(formState.quantity) || 1,
                     specs: {
                         mat: `${formState.grade}/${formState.color}`,
-                        dims: `${thickness}" x ${width}" x ${length}"`
+                        dims: formatDims(itemForDims, activeType.split('/')[0].replace('Cut ', '')) // Use normalized type for formatting
                     },
                     price: 0
                 }]);
@@ -1732,12 +1732,12 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 id: Date.now(),
                 type: activeType,
                 desc: (activeType === 'Cut Piece/Sand')
-                    ? `${formState.grade} ${formState.color} ${formatDims(itemForDims, activeType)}`
+                    ? `${formState.grade} ${formState.color} ${formatDims(itemForDims, 'Sheet')}` // Force Sheet formatting for Cut Piece
                     : (pricingData.description || `${formState.grade} ${formState.color} ${activeType}`),
                 qty: parseInt(formState.quantity, 10) || 1,
                 specs: {
                     mat: `${formState.grade}/${formState.color}`,
-                    dims: formatDims(itemForDims, activeType),
+                    dims: formatDims(itemForDims, activeType.split('/')[0].replace('Cut ', '')), // Normalize type
                     stockSize: formState.stockSize, // Save selected stock size
                     rawDims: { width, length, thickness } // Save raw dimensions for optimization
                 },
