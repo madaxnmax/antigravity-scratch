@@ -1060,6 +1060,15 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
 
         console.log("AddToCart Debug:", { activeType, thickness, width, length, formState });
 
+        const itemForDims = {
+            Thickness: thickness,
+            Width: width,
+            Length: length,
+            Diameter: diameter,
+            Outer_Diameter: diameter, // Fallback
+            Inner_Diameter: 0 // Fallback
+        };
+
         try {
             const res = await fetch('/api/pricing/calculate', {
                 method: 'POST',
