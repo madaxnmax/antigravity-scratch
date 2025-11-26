@@ -1643,13 +1643,23 @@ const MetalFlowApp = () => {
                     width: parseFloat(s.width),
                     count: parseInt(s.count)
                 })),
-                requirements: requirements.map(r => ({
-                    length: parseFloat(r.length),
-                    width: parseFloat(r.width),
-                    count: parseInt(r.count)
-                })),
+                requirements: requirements.map(r => {
+                    const l = parseFloat(r.length);
+                    const w = parseFloat(r.width);
+                    const c = parseInt(r.count);
+                    if (isNaN(l) || isNaN(w) || isNaN(c) || l <= 0 || w <= 0 || c <= 0) {
+                        console.warn("Invalid requirement found:", r);
+                        return null;
+                    }
+                    return { length: l, width: w, count: c };
+                }).filter(Boolean),
                 kerf: parseFloat(kerf) || 0
             };
+
+            if (payload.requirements.length === 0) {
+                alert("No valid cut pieces found to optimize. Please check dimensions.");
+                return;
+            }
 
             console.log("Sending optimization payload:", payload);
 
