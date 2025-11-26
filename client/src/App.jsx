@@ -974,28 +974,105 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
     const handleOptimize = async () => {
         setIsOptimizing(true);
         try {
-            // Simple parsing for demo: assume last dim is length
-            const requirements = cart.map(item => {
-                const parts = item.specs.dims.split('x');
-                const lengthStr = parts[parts.length - 1].replace('"', '').trim();
-                return {
-                    length: parseFloat(lengthStr) || 10,
-                    count: item.qty
-                };
-            });
+            console.log("Preparing optimization (Paranoid Mode - QuoteBuilder)...");
 
-            const stocks = [{ length: 144, count: 1000, price: 100 }]; // Standard 12ft stock
+            // --- PARANOID STOCK PARSING ---
+            let stocks = [];
+            try {
+                const stockSizes = new Set();
+                cart.forEach(item => {
+                    if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
+                });
+
+                if (stockSizes.size > 0) {
+                    stocks = Array.from(stockSizes).map(sizeStr => {
+                        try {
+                            if (!sizeStr || sizeStr.toLowerCase().includes('custom')) {
+                                return { length: 96, width: 48, count: 100 };
+                            }
+                            const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+                            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                return { width: Number(parts[0]), length: Number(parts[1]), count: 100 };
+                            }
+                        } catch (e) { console.error("Stock parse error:", e); }
+                        return { length: 96, width: 48, count: 100 }; // Fallback
+                    });
+                } else {
+                    stocks = [{ length: 96, width: 48, count: 100 }];
+                }
+            } catch (e) {
+                console.error("Stock generation error:", e);
+                stocks = [{ length: 96, width: 48, count: 100 }];
+            }
+
+            // --- PARANOID REQUIREMENTS PARSING ---
+            let requirements = [];
+            try {
+                requirements = cart
+                    .filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet')
+                    .map(item => {
+                        try {
+                            let w = 12, l = 12, c = 1; // Safe defaults
+
+                            // Try Raw
+                            if (item.specs?.rawDims?.width) w = item.specs.rawDims.width;
+                            if (item.specs?.rawDims?.length) l = item.specs.rawDims.length;
+
+                            // Try String
+                            if ((w === 12 || l === 12) && item.specs?.dims) {
+                                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                                if (parts.length >= 2) {
+                                    if (parts.length === 3) { w = parts[1]; l = parts[2]; }
+                                    else { w = parts[0]; l = parts[1]; }
+                                }
+                            }
+
+                            // Validate & Cast
+                            w = Number(w);
+                            l = Number(l);
+                            c = Number(item.qty);
+
+                            if (isNaN(w) || w <= 0) w = 12;
+                            if (isNaN(l) || l <= 0) l = 12;
+                            if (isNaN(c) || c <= 0) c = 1;
+
+                            return { width: w, length: l, count: c };
+                        } catch (e) {
+                            console.error("Item parse error:", e);
+                            return { width: 12, length: 12, count: 1 };
+                        }
+                    });
+            } catch (e) {
+                console.error("Requirements generation error:", e);
+            }
+
+            const payload = {
+                stocks: stocks,
+                requirements: requirements,
+                kerf: 0.125
+            };
+
+            console.log("PARANOID PAYLOAD (QuoteBuilder):", JSON.stringify(payload, null, 2));
+
+            if (payload.requirements.length === 0) {
+                alert("No valid items to optimize.");
+                return;
+            }
 
             const res = await fetch('/opticutter/optimize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stocks, requirements })
+                body: JSON.stringify(payload)
             });
 
+            if (!res.ok) throw new Error("Optimization request failed");
+
             const data = await res.json();
+            console.log("Optimization result:", data);
             setOptimizationResult(data);
         } catch (err) {
-            console.error("Optimization failed", err);
+            console.error("Optimization failed:", err);
+            alert("Optimization failed. Check console.");
         } finally {
             setIsOptimizing(false);
         }
@@ -1576,118 +1653,6 @@ const MetalFlowApp = () => {
             t.id === activeThreadId ? { ...t, tags: newTags } : t
         );
         setThreads(updatedThreads);
-    };
-
-    // OptiCutter Integration
-    const [optimizationData, setOptimizationData] = useState(null);
-
-    const handleOptimize = async () => {
-        try {
-            console.log("Preparing optimization...");
-
-            console.log("Preparing optimization (Paranoid Mode)...");
-
-            // --- PARANOID STOCK PARSING ---
-            let stocks = [];
-            try {
-                const stockSizes = new Set();
-                cart.forEach(item => {
-                    if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
-                });
-
-                if (stockSizes.size > 0) {
-                    stocks = Array.from(stockSizes).map(sizeStr => {
-                        try {
-                            if (!sizeStr || sizeStr.toLowerCase().includes('custom')) {
-                                return { length: 96, width: 48, count: 100 };
-                            }
-                            const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
-                            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                return { width: Number(parts[0]), length: Number(parts[1]), count: 100 };
-                            }
-                        } catch (e) { console.error("Stock parse error:", e); }
-                        return { length: 96, width: 48, count: 100 }; // Fallback
-                    });
-                } else {
-                    stocks = [{ length: 96, width: 48, count: 100 }];
-                }
-            } catch (e) {
-                console.error("Stock generation error:", e);
-                stocks = [{ length: 96, width: 48, count: 100 }];
-            }
-
-            // --- PARANOID REQUIREMENTS PARSING ---
-            let requirements = [];
-            try {
-                requirements = cart
-                    .filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet')
-                    .map(item => {
-                        try {
-                            let w = 12, l = 12, c = 1; // Safe defaults
-
-                            // Try Raw
-                            if (item.specs?.rawDims?.width) w = item.specs.rawDims.width;
-                            if (item.specs?.rawDims?.length) l = item.specs.rawDims.length;
-
-                            // Try String
-                            if ((w === 12 || l === 12) && item.specs?.dims) {
-                                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
-                                if (parts.length >= 2) {
-                                    // Heuristic: usually smallest is width? No, stick to order.
-                                    // If 3 parts (T x W x L), take last 2.
-                                    if (parts.length === 3) { w = parts[1]; l = parts[2]; }
-                                    else { w = parts[0]; l = parts[1]; }
-                                }
-                            }
-
-                            // Validate & Cast
-                            w = Number(w);
-                            l = Number(l);
-                            c = Number(item.qty);
-
-                            if (isNaN(w) || w <= 0) w = 12;
-                            if (isNaN(l) || l <= 0) l = 12;
-                            if (isNaN(c) || c <= 0) c = 1;
-
-                            return { width: w, length: l, count: c };
-                        } catch (e) {
-                            console.error("Item parse error:", e);
-                            return { width: 12, length: 12, count: 1 };
-                        }
-                    });
-            } catch (e) {
-                console.error("Requirements generation error:", e);
-            }
-
-            const payload = {
-                stocks: stocks,
-                requirements: requirements,
-                kerf: 0.125
-            };
-
-            console.log("PARANOID PAYLOAD:", JSON.stringify(payload, null, 2));
-
-            // Final sanity check
-            if (payload.requirements.length === 0) {
-                alert("No valid items to optimize.");
-                return;
-            }
-
-            const res = await fetch('/opticutter/optimize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) throw new Error("Optimization request failed");
-
-            const data = await res.json();
-            console.log("Optimization result:", data);
-            setOptimizationData(data);
-        } catch (err) {
-            console.error("Optimization failed:", err);
-            alert("Optimization failed. Check console.");
-        }
     };
 
     const handleCompose = () => {
