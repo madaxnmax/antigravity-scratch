@@ -10,7 +10,8 @@ import {
     Inbox as InboxIcon, Tag, Info, ChevronRight, Layout,
     MessageSquare, FileSignature, Bot, Shield, Calendar,
     Reply, ReplyAll, AlarmClock, CircleDashed, ExternalLink,
-    UserPlus, Image as ImageIcon, Quote, FileText, Upload
+    UserPlus, Image as ImageIcon, Quote, FileText, Upload,
+    AtSign, Maximize2, Smile as SmileIcon
 } from 'lucide-react';
 import OptimizationResult from './OptimizationResult';
 
