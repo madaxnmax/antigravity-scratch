@@ -475,12 +475,13 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings }) => (
     </div>
 );
 
-const ThreadList = ({ threads, activeThreadId, onSelectThread }) => (
+const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh }) => (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-bold text-gray-800 text-lg">Inbox</h2>
                 <div className="flex gap-2 text-gray-400">
+                    <RefreshCw size={18} className="cursor-pointer hover:text-blue-600 transition-colors" onClick={onRefresh} />
                     <Filter size={18} className="cursor-pointer hover:text-gray-600" />
                     <Archive size={18} className="cursor-pointer hover:text-gray-600" />
                 </div>
@@ -1210,58 +1211,60 @@ const MetalFlowApp = () => {
     }, [isQuoteModalOpen]);
 
     // Fetch threads from Nylas
-    useEffect(() => {
-        const fetchThreads = async () => {
-            try {
-                console.log("Fetching threads...");
-                const res = await fetch('/nylas/threads?limit=5');
-                if (!res.ok) throw new Error('Failed to fetch threads');
-                const data = await res.json();
-                console.log("Threads fetched:", data);
+    const refreshThreads = async () => {
+        try {
+            console.log("Fetching threads...");
+            const res = await fetch('/nylas/threads?limit=5');
+            if (!res.ok) throw new Error('Failed to fetch threads');
+            const data = await res.json();
+            console.log("Threads fetched:", data);
 
-                // Set user email from the first thread if available (simplified logic)
-                if (data.length > 0 && data[0].participants) {
-                    const me = data[0].participants.find(p => p.email === 'max@atlasfibre.com') || data[0].participants[0];
-                    setUserEmail(me.email);
-                }
-
-                const mappedThreads = data.map(t => ({
-                    id: t.id,
-                    subject: t.subject,
-                    customer: "Unknown Customer", // Placeholder
-                    customerInitials: "??",
-                    timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    status: "Open",
-                    channel: "Inbox",
-                    assignee: "Me",
-                    tags: [],
-                    senderEmail: t.participants?.[0]?.email || "unknown",
-                    to: t.participants?.map(p => p.email) || [],
-                    cc: [],
-                    messages: [{
-                        id: t.latest_message_id,
-                        sender: "customer",
-                        name: t.participants?.[0]?.name || "Unknown",
-                        text: t.snippet,
-                        timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                    }],
-                    productContext: "Sheet" // Default
-                }));
-                setThreads(mappedThreads);
-                if (mappedThreads.length > 0) {
-                    setActiveThreadId(mappedThreads[0].id);
-                }
-            } catch (err) {
-                console.error("Error fetching threads:", err);
-                // Fallback to mock data if API fails
-                setThreads(MOCK_THREADS);
-                if (MOCK_THREADS.length > 0) {
-                    setActiveThreadId(MOCK_THREADS[0].id);
-                }
+            // Set user email from the first thread if available (simplified logic)
+            if (data.length > 0 && data[0].participants) {
+                const me = data[0].participants.find(p => p.email === 'max@atlasfibre.com') || data[0].participants[0];
+                setUserEmail(me.email);
             }
-        };
 
-        fetchThreads();
+            const mappedThreads = data.map(t => ({
+                id: t.id,
+                subject: t.subject,
+                customer: "Unknown Customer", // Placeholder
+                customerInitials: "??",
+                timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                status: "Open",
+                channel: "Inbox",
+                assignee: "Me",
+                tags: [],
+                senderEmail: t.participants?.[0]?.email || "unknown",
+                to: t.participants?.map(p => p.email) || [],
+                cc: [],
+                messages: [{
+                    id: t.latest_message_id,
+                    sender: "customer",
+                    name: t.participants?.[0]?.name || "Unknown",
+                    text: t.snippet,
+                    timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+                }],
+                productContext: "Sheet" // Default
+            }));
+            setThreads(mappedThreads);
+            if (mappedThreads.length > 0 && !activeThreadId) {
+                setActiveThreadId(mappedThreads[0].id);
+            }
+        } catch (err) {
+            console.error("Error fetching threads:", err);
+            // Fallback to mock data if API fails
+            setThreads(MOCK_THREADS);
+            if (MOCK_THREADS.length > 0 && !activeThreadId) {
+                setActiveThreadId(MOCK_THREADS[0].id);
+            }
+        }
+    };
+
+    useEffect(() => {
+        refreshThreads();
+        const interval = setInterval(refreshThreads, 15000); // Auto-refresh every 15s
+        return () => clearInterval(interval);
     }, []);
 
     // Fetch messages for active thread
@@ -1354,7 +1357,7 @@ const MetalFlowApp = () => {
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
             <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
-            <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
+            <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} onRefresh={refreshThreads} />
             <ThreadView
                 thread={activeThread}
                 onOpenQuote={handleOpenQuote}
