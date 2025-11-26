@@ -99,7 +99,12 @@ class DatabaseService {
             .range(offset, offset + limit - 1);
 
         if (status) {
-            query = query.eq('status', status);
+            if (status === 'inbox') {
+                // For inbox, include 'inbox' AND null (legacy/default)
+                query = query.or('status.eq.inbox,status.is.null');
+            } else {
+                query = query.eq('status', status);
+            }
         }
 
         const { data, error } = await query;
