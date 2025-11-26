@@ -25,6 +25,10 @@ if (nylasApiKey) {
 }
 
 
+app.get('/ping', (req, res) => {
+    res.send('pong');
+});
+
 app.get('/supabase', async (req, res) => {
     if (!supabase) {
         return res.status(500).json({ error: 'Supabase not configured' });
@@ -194,6 +198,20 @@ app.post('/api/pricing/calculate', async (req, res) => {
         console.error('Pricing Route Error:', error);
         res.status(500).json({ error: 'Failed to calculate price' });
     }
+});
+
+app.get('/version', (req, res) => {
+    res.send('v2 - Refined Inbox UI');
+});
+
+app.get('/', (req, res) => {
+    const indexPath = path.join(__dirname, '../client/dist/index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error("Error sending index.html:", err);
+            res.status(500).send("Error loading application: " + err.message);
+        }
+    });
 });
 
 app.get('*', (req, res) => {
