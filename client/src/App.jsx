@@ -1024,9 +1024,10 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 // --- QUOTE BUILDER & MAIN APP ---
 
 const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, activeThread, onSubmitQuote, initialCart = [], readOnly = false }) => {
+    console.log("QuoteBuilder Render:", { isOpen, initialCart, readOnly, step: initialStep });
     const [step, setStep] = useState(initialStep);
     const [activeType, setActiveType] = useState('Sheet');
-    const [cart, setCart] = useState(initialCart);
+    const [cart, setCart] = useState(initialCart || []);
     const [selectedItemId, setSelectedItemId] = useState(null);
 
     useEffect(() => {
@@ -1492,7 +1493,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                             <div className="w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 h-full">
                                 <div className="p-4 border-b border-gray-200 font-bold text-xs text-gray-500 uppercase tracking-wider flex-shrink-0">Cart Items ({cart.length})</div>
                                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                    {cart.map(item => {
+                                    {cart && Array.isArray(cart) ? cart.map(item => {
                                         const isSelected = selectedItemId === item.id;
                                         return (
                                             <div key={item.id} onClick={() => setSelectedItemId(item.id)} className={`rounded-lg p-4 cursor-pointer transition-all relative border shadow-sm ${isSelected ? 'bg-white border-blue-500 ring-1 ring-blue-500' : 'bg-white border-gray-200 hover:border-blue-300'}`}>
@@ -1504,7 +1505,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                 </div>
                                             </div>
                                         );
-                                    })}
+                                    }) : <div className="text-center text-gray-400 p-4 text-sm">No items in cart</div>}
                                 </div>
                                 <div className="p-4 border-t border-gray-200 flex-shrink-0">
                                     {!readOnly && <button onClick={() => setStep(1)} className="flex items-center justify-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 w-full py-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200"><ChevronLeft size={16} /> Back to Cart</button>}
@@ -2060,8 +2061,9 @@ const MetalFlowApp = () => {
                             const jsonStr = m.body.replace('[QUOTE_DATA]', '').replace('[/QUOTE_DATA]', '');
                             quoteDataObj = JSON.parse(jsonStr);
                             quoteId = quoteDataObj.id;
+                            console.log("Parsed quote data for msg:", m.id, quoteDataObj);
                         } catch (e) {
-                            console.error("Failed to parse quote data", e);
+                            console.error("Failed to parse quote data", e, m.body);
                         }
                     }
 
