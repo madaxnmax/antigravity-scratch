@@ -2407,13 +2407,13 @@ const MetalFlowApp = () => {
                 />
             </QuoteErrorBoundary>
 
-            {isSettingsOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
-                    <div className="w-[600px] bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300">
-                        <SettingsView onClose={() => setIsSettingsOpen(false)} allTags={INITIAL_TAGS} />
-                    </div>
-                </div>
-            )}
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                grants={grants}
+                defaultGrantId={defaultGrantId}
+                setDefaultGrantId={setDefaultGrantId}
+            />
 
             {isComposeOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
