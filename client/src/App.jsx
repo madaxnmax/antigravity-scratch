@@ -1105,7 +1105,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 specs: {
                     mat: `${formState.grade}/${formState.color}`,
                     dims: formatDims(itemForDims, activeType),
-                    stockSize: formState.stockSize // Save selected stock size
+                    stockSize: formState.stockSize, // Save selected stock size
+                    rawDims: { width, length, thickness } // Save raw dimensions for optimization
                 },
                 price: pricingData.unitPrice,
                 total: pricingData.totalPrice,
@@ -1585,30 +1586,36 @@ const MetalFlowApp = () => {
             console.log("Preparing optimization...");
 
             // 1. Parse Requirements from Cart
+            // 1. Parse Requirements from Cart
             const requirements = cart.filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet').map(item => {
-                // Parse dimensions from specs.dims (e.g., "0.125" x 10" x 20"")
-                // Assuming format: Thickness x Width x Length
-                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
-                // If 3 parts, assume T x W x L. If 2, W x L.
                 let width, length;
-                if (parts.length === 3) {
-                    width = parts[1];
-                    length = parts[2];
-                } else if (parts.length === 2) {
-                    width = parts[0];
-                    length = parts[1];
-                } else {
-                    // Fallback or skip
-                    width = 10;
-                    length = 10;
+
+                // Prefer raw dimensions if available (added in recent fix)
+                if (item.specs && item.specs.rawDims) {
+                    width = item.specs.rawDims.width;
+                    length = item.specs.rawDims.length;
+                }
+                // Fallback: Try to parse from dims string (legacy support)
+                else if (item.specs && item.specs.dims) {
+                    const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                    if (parts.length === 3) {
+                        width = parts[1];
+                        length = parts[2];
+                    } else if (parts.length === 2) {
+                        width = parts[0];
+                        length = parts[1];
+                    }
                 }
 
                 return {
                     width,
                     length,
-                    count: item.qty
+                    count: item.qty,
+                    originalItem: item // For debugging
                 };
             });
+
+            console.log("Parsed Requirements (Pre-Filter):", requirements);
 
             if (requirements.length === 0) {
                 alert("No cut pieces in cart to optimize.");
