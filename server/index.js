@@ -495,4 +495,5 @@ app.get('*', (req, res) => {
 // Start Server
 app.listen(port, () => {
     logger.info(`Server running on port ${port}`);
+    logger.info("Server starting with admin routes enabled (v2)");
 });
