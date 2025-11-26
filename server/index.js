@@ -74,6 +74,27 @@ app.get('/nylas', async (req, res) => {
     }
 });
 
+app.get('/nylas/thread/:id', async (req, res) => {
+    try {
+        const grants = await nylas.grants.list();
+        const firstGrant = grants.data[0];
+        if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
+
+        const messages = await nylas.messages.list({
+            identifier: firstGrant.id,
+            queryParams: {
+                threadId: req.params.id,
+                limit: 10
+            }
+        });
+
+        res.json({ messages: messages.data });
+    } catch (error) {
+        console.error("Nylas Thread Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.use(express.json());
 
 app.get('/opticutter', (req, res) => {

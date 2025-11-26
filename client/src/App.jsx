@@ -618,7 +618,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                         <span className="text-xs text-gray-400 ml-auto">{msg.timestamp}</span>
                                     </div>
                                     <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4">
-                                        {msg.text}
+                                        <div dangerouslySetInnerHTML={{ __html: msg.text }} />
                                         <div className="flex justify-between items-center mb-6">
                                             <h2 className="text-lg font-bold text-gray-800">Add Items to Quote</h2>
                                             <div className="flex gap-2">
@@ -1165,11 +1165,15 @@ const MetalFlowApp = () => {
     const [pendingReply, setPendingReply] = useState("");
     const [currentMessages, setCurrentMessages] = useState(MOCK_THREADS[0].messages);
 
+    const [userEmail, setUserEmail] = useState("");
+
     useEffect(() => {
         const fetchThreads = async () => {
             try {
                 const res = await fetch('/nylas');
                 const data = await res.json();
+                if (data.user) setUserEmail(data.user);
+
                 if (data.threads && data.threads.length > 0) {
                     const mappedThreads = data.threads.map(t => {
                         const sender = t.participants.find(p => p.email !== data.user) || t.participants[0];
@@ -1186,20 +1190,13 @@ const MetalFlowApp = () => {
                             senderEmail: sender?.email,
                             to: t.participants.map(p => p.email),
                             cc: [],
-                            messages: [{
-                                id: t.id + "_msg",
-                                sender: "customer",
-                                name: sender?.name || sender?.email,
-                                text: t.snippet,
-                                timestamp: new Date(t.last_message_timestamp * 1000).toLocaleString()
-                            }],
+                            messages: [], // Will be fetched separately
                             productContext: "General"
                         };
                     });
                     setThreads(mappedThreads);
                     if (mappedThreads.length > 0) {
                         setActiveThreadId(mappedThreads[0].id);
-                        setCurrentMessages(mappedThreads[0].messages);
                     }
                 }
             } catch (err) {
@@ -1209,12 +1206,37 @@ const MetalFlowApp = () => {
         fetchThreads();
     }, []);
 
+    useEffect(() => {
+        const fetchMessages = async () => {
+            if (!activeThreadId) return;
+            try {
+                const res = await fetch(`/nylas/thread/${activeThreadId}`);
+                const data = await res.json();
+                if (data.messages) {
+                    // Sort messages by date
+                    const sorted = data.messages.sort((a, b) => a.date - b.date);
+                    const mappedMessages = sorted.map(m => ({
+                        id: m.id,
+                        sender: m.from[0].email === userEmail ? 'user' : 'customer',
+                        name: m.from[0].name || m.from[0].email,
+                        text: m.body,
+                        timestamp: new Date(m.date * 1000).toLocaleString()
+                    }));
+                    setCurrentMessages(mappedMessages);
+                }
+            } catch (err) {
+                console.error("Failed to fetch messages", err);
+            }
+        };
+        fetchMessages();
+    }, [activeThreadId, userEmail]);
+
     return (
         <div className="flex h-screen w-full font-sans bg-slate-50 overflow-hidden text-slate-900">
             <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
             <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
             <ThreadView
-                thread={MOCK_THREADS[0]}
+                thread={threads.find(t => t.id === activeThreadId)}
                 onOpenQuote={() => { setIsQuoteModalOpen(true) }}
                 onViewQuote={() => { }}
                 onCloneQuote={() => { }}
