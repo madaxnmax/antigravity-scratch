@@ -352,6 +352,7 @@ const dbService = require('./src/services/db');
 const syncService = require('./src/services/sync');
 
 // Sync Endpoint
+// Sync Endpoint
 app.post('/api/sync', async (req, res) => {
     try {
         const grants = await nylas.grants.list();
@@ -365,6 +366,65 @@ app.post('/api/sync', async (req, res) => {
     } catch (error) {
         logger.error('Sync failed', error);
         res.status(500).json({ error: 'Sync failed' });
+    }
+});
+
+// Audit Endpoint
+app.get('/api/audit', async (req, res) => {
+    try {
+        const audit = {
+            nylas: { status: 'unknown', threads: [] },
+            supabase: { status: 'unknown', threads: [] },
+            match: false
+        };
+
+        // 1. Check Nylas
+        try {
+            const grants = await nylas.grants.list();
+            if (grants.data.length > 0) {
+                const grantId = grants.data[0].id;
+                const nylasRes = await nylas.threads.list({
+                    identifier: grantId,
+                    queryParams: { limit: 5 }
+                });
+                audit.nylas.status = 'connected';
+                audit.nylas.threads = nylasRes.data.map(t => ({
+                    id: t.id,
+                    subject: t.subject,
+                    date: new Date(t.lastMessageTimestamp * 1000).toISOString()
+                }));
+            } else {
+                audit.nylas.status = 'no_grants';
+            }
+        } catch (e) {
+            audit.nylas.status = 'error';
+            audit.nylas.error = e.message;
+        }
+
+        // 2. Check Supabase
+        try {
+            const dbThreads = await dbService.getThreads(5);
+            audit.supabase.status = 'connected';
+            audit.supabase.threads = dbThreads.map(t => ({
+                id: t.id,
+                subject: t.subject,
+                date: new Date(t.last_message_timestamp * 1000).toISOString()
+            }));
+        } catch (e) {
+            audit.supabase.status = 'error';
+            audit.supabase.error = e.message;
+        }
+
+        // 3. Compare (Check if top Nylas thread exists in Supabase)
+        if (audit.nylas.threads.length > 0 && audit.supabase.threads.length > 0) {
+            const topNylasId = audit.nylas.threads[0].id;
+            const foundInDb = audit.supabase.threads.find(t => t.id === topNylasId);
+            audit.match = !!foundInDb;
+        }
+
+        res.json(audit);
+    } catch (error) {
+        res.status(500).json({ error: 'Audit failed', details: error.message });
     }
 });
 
@@ -449,7 +509,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.3 - Sync Debug');
+    res.send('v5.4 - Audit Endpoint');
 });
 
 app.get('/', (req, res) => {
