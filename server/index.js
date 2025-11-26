@@ -45,12 +45,35 @@ app.get('/supabase', async (req, res) => {
     }
 });
 
-app.get('/nylas', (req, res) => {
+app.get('/nylas', async (req, res) => {
     if (!nylas) {
         return res.status(500).json({ error: 'Nylas not configured' });
     }
-    // Just return a status indicating configuration is present
-    res.json({ status: 'Nylas Configured', apiKeyPresent: true });
+
+    try {
+        // List grants to find a valid one
+        const grants = await nylas.grants.list();
+        const firstGrant = grants.data[0];
+
+        if (!firstGrant) {
+            return res.json({ status: 'Connected', message: 'No grants found. Please authenticate a user.' });
+        }
+
+        // Fetch threads for the first grant
+        const threads = await nylas.threads.list({
+            identifier: firstGrant.id,
+            queryParams: { limit: 10 }
+        });
+
+        res.json({
+            status: 'Connected',
+            user: firstGrant.email,
+            threads: threads.data
+        });
+    } catch (error) {
+        console.error("Nylas Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/opticutter', (req, res) => {
@@ -59,6 +82,14 @@ app.get('/opticutter', (req, res) => {
         return res.status(500).json({ error: 'OptiCutter not configured' });
     }
     res.json({ status: 'OptiCutter Configured', apiKeyPresent: true });
+});
+
+// Serve static files from the React client
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 app.listen(port, () => {

@@ -980,6 +980,50 @@ const MetalFlowApp = () => {
     const [pendingReply, setPendingReply] = useState("");
     const [currentMessages, setCurrentMessages] = useState(MOCK_THREADS[0].messages);
 
+    useEffect(() => {
+        const fetchThreads = async () => {
+            try {
+                const res = await fetch('/nylas');
+                const data = await res.json();
+                if (data.threads && data.threads.length > 0) {
+                    const mappedThreads = data.threads.map(t => {
+                        const sender = t.participants.find(p => p.email !== data.user) || t.participants[0];
+                        return {
+                            id: t.id,
+                            subject: t.subject,
+                            customer: resolveCustomerFromEmail(sender?.email)?.name || "Unknown Customer",
+                            customerInitials: (sender?.name || "??").substring(0, 2).toUpperCase(),
+                            timestamp: new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            status: "Open",
+                            channel: "Inbox",
+                            assignee: "Unassigned",
+                            tags: t.unread ? ["Unread"] : [],
+                            senderEmail: sender?.email,
+                            to: t.participants.map(p => p.email),
+                            cc: [],
+                            messages: [{
+                                id: t.id + "_msg",
+                                sender: "customer",
+                                name: sender?.name || sender?.email,
+                                text: t.snippet,
+                                timestamp: new Date(t.last_message_timestamp * 1000).toLocaleString()
+                            }],
+                            productContext: "General"
+                        };
+                    });
+                    setThreads(mappedThreads);
+                    if (mappedThreads.length > 0) {
+                        setActiveThreadId(mappedThreads[0].id);
+                        setCurrentMessages(mappedThreads[0].messages);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch Nylas threads", err);
+            }
+        };
+        fetchThreads();
+    }, []);
+
     return (
         <div className="flex h-screen w-full font-sans bg-slate-50 overflow-hidden text-slate-900">
             <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
