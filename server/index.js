@@ -449,17 +449,18 @@ app.get('/api/threads/count', async (req, res) => {
 app.get('/api/threads', async (req, res) => {
     try {
         const status = req.query.status; // Optional status filter
-        const threads = await dbService.getThreads(50, 0, status);
+        const channel = req.query.channel; // Optional channel filter
+        const threads = await dbService.getThreads(50, 0, status, channel);
         res.json(threads);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch threads' });
     }
 });
 
-// Update Thread (e.g. Archive or Mark as New/Read)
+// Update Thread (e.g. Archive or Mark as New/Read or Move Channel)
 app.patch('/api/threads/:id', async (req, res) => {
     try {
-        const { status, is_new } = req.body;
+        const { status, is_new, channel } = req.body;
 
         if (status) {
             await dbService.updateThreadStatus(req.params.id, status);
@@ -467,6 +468,10 @@ app.patch('/api/threads/:id', async (req, res) => {
 
         if (typeof is_new !== 'undefined') {
             await dbService.updateThreadIsNew(req.params.id, is_new);
+        }
+
+        if (channel) {
+            await dbService.updateThreadChannel(req.params.id, channel);
         }
 
         res.json({ success: true });
@@ -547,7 +552,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.8 - New Message Logic');
+    res.send('v5.9 - Shared Inboxes');
 });
 
 app.get('/', (req, res) => {

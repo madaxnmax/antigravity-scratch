@@ -42,6 +42,10 @@ class DatabaseService {
             threadData.is_new = thread.is_new;
         }
 
+        if (thread.channel) {
+            threadData.channel = thread.channel;
+        }
+
         const { error } = await this.supabase
             .from('threads')
             .upsert(threadData, { onConflict: 'id' });
@@ -80,6 +84,22 @@ class DatabaseService {
 
         if (error) {
             logger.error('DatabaseService: Failed to update thread is_new', { error, threadId });
+            throw error;
+        }
+    }
+
+    async updateThreadChannel(threadId, channel) {
+        if (!this.supabase) return null;
+
+        logger.info(`DatabaseService: Updating thread ${threadId} channel to ${channel}`);
+
+        const { error } = await this.supabase
+            .from('threads')
+            .update({ channel: channel })
+            .eq('id', threadId);
+
+        if (error) {
+            logger.error('DatabaseService: Failed to update thread channel', { error, threadId });
             throw error;
         }
     }
@@ -123,10 +143,10 @@ class DatabaseService {
         }
     }
 
-    async getThreads(limit = 50, offset = 0, status = null) {
+    async getThreads(limit = 50, offset = 0, status = null, channel = null) {
         if (!this.supabase) return [];
 
-        logger.info(`DatabaseService: getThreads called with status=${status}`);
+        logger.info(`DatabaseService: getThreads called with status=${status}, channel=${channel}`);
 
         let query = this.supabase
             .from('threads')
@@ -138,6 +158,15 @@ class DatabaseService {
             if (status === 'inbox') {
                 // For inbox, include 'inbox', 'Open' (legacy), and null (legacy/default)
                 query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
+
+                // Filter by channel if provided (only for inbox)
+                if (channel) {
+                    if (channel === 'Inbox') {
+                        query = query.or('channel.eq.Inbox,channel.is.null');
+                    } else {
+                        query = query.eq('channel', channel);
+                    }
+                }
             } else {
                 query = query.eq('status', status);
             }
