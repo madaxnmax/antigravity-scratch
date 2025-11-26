@@ -345,6 +345,47 @@ if (fs.existsSync(clientDistPath)) {
     logger.error(`Client dist directory not found at ${clientDistPath}`);
 }
 
+// --- SUPABASE EMAIL ROUTES ---
+const dbService = require('./src/services/db');
+const syncService = require('./src/services/sync');
+
+// Sync Endpoint
+app.post('/api/sync', async (req, res) => {
+    try {
+        const grants = await nylas.grants.list();
+        if (grants.data.length > 0) {
+            // Sync first grant for now
+            await syncService.syncThreads(grants.data[0].id);
+            res.json({ success: true, message: 'Sync started' });
+        } else {
+            res.status(400).json({ error: 'No connected accounts' });
+        }
+    } catch (error) {
+        logger.error('Sync failed', error);
+        res.status(500).json({ error: 'Sync failed' });
+    }
+});
+
+// Get Threads from DB
+app.get('/api/threads', async (req, res) => {
+    try {
+        const threads = await dbService.getThreads();
+        res.json(threads);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch threads' });
+    }
+});
+
+// Get Messages from DB
+app.get('/api/threads/:id/messages', async (req, res) => {
+    try {
+        const messages = await dbService.getMessages(req.params.id);
+        res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+});
+
 // AI Route
 const aiService = require('./src/services/ai');
 

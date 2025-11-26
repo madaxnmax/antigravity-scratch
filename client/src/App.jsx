@@ -478,13 +478,14 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose })
     </div>
 );
 
-const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh }) => (
+const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync }) => (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-bold text-gray-800 text-lg">Inbox</h2>
                 <div className="flex gap-2 text-gray-400">
                     <RefreshCw size={18} className="cursor-pointer hover:text-blue-600 transition-colors" onClick={onRefresh} />
+                    <button onClick={onSync} className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded hover:bg-blue-200">Sync</button>
                     <Filter size={18} className="cursor-pointer hover:text-gray-600" />
                     <Archive size={18} className="cursor-pointer hover:text-gray-600" />
                 </div>
@@ -1475,7 +1476,6 @@ const MetalFlowApp = () => {
     const [pendingReply, setPendingReply] = useState("");
     const [currentMessages, setCurrentMessages] = useState([]);
     const [allTags, setAllTags] = useState(INITIAL_TAGS);
-    const [userEmail, setUserEmail] = useState(null);
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
 
@@ -1520,55 +1520,31 @@ const MetalFlowApp = () => {
         console.log("State Update - Quote Modal Open:", isQuoteModalOpen);
     }, [isQuoteModalOpen]);
 
-    // Fetch threads from Nylas
+    // --- DATA FETCHING (SUPABASE) ---
     const refreshThreads = async () => {
         try {
-            console.log("Fetching threads...");
-            const res = await fetch('/nylas/threads?limit=5');
-            if (!res.ok) throw new Error('Failed to fetch threads');
-            const data = await res.json();
-            console.log("Threads fetched:", data);
-
-            // Handle new response structure { threads: [], userEmail: string }
-            const threadsData = data.threads || data; // Fallback for safety
-            if (data.userEmail) {
-                setUserEmail(data.userEmail);
-            }
-
-            const mappedThreads = threadsData.map(t => ({
-                id: t.id,
-                grantId: t.grantId, // Preserve grantId
-                subject: t.subject,
-                customer: "Unknown Customer", // Placeholder
-                customerInitials: "??",
-                timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                status: "Open",
-                channel: "Inbox",
-                assignee: "Me",
-                tags: [],
-                senderEmail: t.participants?.[0]?.email || "unknown",
-                to: t.participants?.map(p => p.email) || [],
-                cc: [],
-                messages: [{
-                    id: t.latest_message_id,
-                    sender: "customer",
-                    name: t.participants?.[0]?.name || "Unknown",
-                    text: t.snippet,
-                    timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                }],
-                productContext: "Sheet" // Default
-            }));
-            setThreads(mappedThreads);
-            if (mappedThreads.length > 0 && !activeThreadId) {
-                setActiveThreadId(mappedThreads[0].id);
+            const res = await fetch('/api/threads');
+            if (res.ok) {
+                const data = await res.json();
+                setThreads(data);
             }
         } catch (err) {
             console.error("Error fetching threads:", err);
-            // Fallback to mock data if API fails
-            setThreads(MOCK_THREADS);
-            if (MOCK_THREADS.length > 0 && !activeThreadId) {
-                setActiveThreadId(MOCK_THREADS[0].id);
+        }
+    };
+
+    const handleSync = async () => {
+        try {
+            const res = await fetch('/api/sync', { method: 'POST' });
+            if (res.ok) {
+                alert("Sync started. Refreshing...");
+                setTimeout(refreshThreads, 2000); // Wait for sync
+            } else {
+                alert("Sync failed to start.");
             }
+        } catch (err) {
+            console.error("Sync error:", err);
+            alert("Sync error.");
         }
     };
 
@@ -1578,7 +1554,7 @@ const MetalFlowApp = () => {
         return () => clearInterval(interval);
     }, []);
 
-    // Fetch messages for active thread
+    // Fetch messages for active thread from Supabase
     useEffect(() => {
         const fetchMessages = async () => {
             if (!activeThreadId) return;
@@ -1590,32 +1566,22 @@ const MetalFlowApp = () => {
                 return;
             }
 
-            // Find active thread to get grantId
-            const currentThread = threads.find(t => t.id === activeThreadId);
-            const grantIdParam = currentThread?.grantId ? `?grantId=${currentThread.grantId}` : '';
-
             try {
                 console.log(`Fetching messages for thread ${activeThreadId}...`);
-                const res = await fetch(`/nylas/thread/${activeThreadId}${grantIdParam}`);
-                if (!res.ok) throw new Error('Failed to fetch messages');
+                const res = await fetch(`/api/threads/${activeThreadId}/messages`);
+                if (!res.ok) throw new Error("Failed to fetch messages");
+
                 const data = await res.json();
-                console.log("Messages fetched:", data);
 
-                if (!data.messages || !Array.isArray(data.messages)) {
-                    throw new Error("Invalid messages format");
-                }
-
-                const mappedMessages = data.messages.map(m => ({
+                // Map DB messages to UI format
+                const mappedMessages = data.map(m => ({
                     id: m.id,
-                    sender: m.from?.[0]?.email === userEmail ? 'user' : 'customer',
+                    sender: m.from?.[0]?.email === 'me' ? 'user' : 'customer', // Simplified check
                     name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
-                    text: m.body, // Use full HTML body
+                    text: m.body,
                     timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    rawDate: m.date // Store raw date for sorting
+                    rawDate: m.date
                 }));
-
-                // Sort messages chronologically (Oldest -> Newest)
-                mappedMessages.sort((a, b) => a.rawDate - b.rawDate);
 
                 setCurrentMessages(mappedMessages);
             } catch (err) {
@@ -1625,7 +1591,7 @@ const MetalFlowApp = () => {
         };
 
         fetchMessages();
-    }, [activeThreadId, userEmail]);
+    }, [activeThreadId, threads]);
 
 
     const activeThread = activeThreadId === 'new'
