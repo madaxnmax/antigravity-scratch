@@ -22,21 +22,42 @@ class DatabaseService {
     async upsertThread(thread) {
         if (!this.supabase) return null;
 
+        // Prepare object, conditionally adding status if provided
+        const threadData = {
+            id: thread.id,
+            subject: thread.subject,
+            snippet: thread.snippet,
+            last_message_timestamp: thread.last_message_timestamp,
+            unread: thread.unread,
+            participants: thread.participants,
+            tags: thread.tags || [],
+            updated_at: new Date()
+        };
+
+        if (thread.status) {
+            threadData.status = thread.status;
+        }
+
         const { error } = await this.supabase
             .from('threads')
-            .upsert({
-                id: thread.id,
-                subject: thread.subject,
-                snippet: thread.snippet,
-                last_message_timestamp: thread.last_message_timestamp,
-                unread: thread.unread,
-                participants: thread.participants,
-                tags: thread.tags || [],
-                updated_at: new Date()
-            }, { onConflict: 'id' });
+            .upsert(threadData, { onConflict: 'id' });
 
         if (error) {
             logger.error('DatabaseService: Failed to upsert thread', { error, threadId: thread.id });
+            throw error;
+        }
+    }
+
+    async updateThreadStatus(threadId, status) {
+        if (!this.supabase) return null;
+
+        const { error } = await this.supabase
+            .from('threads')
+            .update({ status: status })
+            .eq('id', threadId);
+
+        if (error) {
+            logger.error('DatabaseService: Failed to update thread status', { error, threadId });
             throw error;
         }
     }
@@ -64,14 +85,24 @@ class DatabaseService {
         }
     }
 
-    async getThreads(limit = 50, offset = 0) {
+    async getThreads(limit = 50, offset = 0, status = null) {
         if (!this.supabase) return [];
 
-        const { data, error } = await this.supabase
+        let query = this.supabase
             .from('threads')
             .select('*')
             .order('last_message_timestamp', { ascending: false })
             .range(offset, offset + limit - 1);
+
+        if (status) {
+            query = query.eq('status', status);
+        } else {
+            // Default behavior: if no status requested, maybe return all? 
+            // Or should we default to 'inbox'? 
+            // For now, let's return all if null, but the frontend will likely request 'inbox'.
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             logger.error('DatabaseService: Failed to fetch threads', error);

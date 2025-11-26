@@ -438,10 +438,25 @@ app.get('/api/audit', async (req, res) => {
 // Get Threads from DB
 app.get('/api/threads', async (req, res) => {
     try {
-        const threads = await dbService.getThreads();
+        const status = req.query.status; // Optional status filter
+        const threads = await dbService.getThreads(50, 0, status);
         res.json(threads);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch threads' });
+    }
+});
+
+// Update Thread (e.g. Archive)
+app.patch('/api/threads/:id', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!status) return res.status(400).json({ error: 'Status is required' });
+
+        await dbService.updateThreadStatus(req.params.id, status);
+        res.json({ success: true });
+    } catch (error) {
+        logger.error('Failed to update thread', error);
+        res.status(500).json({ error: 'Failed to update thread' });
     }
 });
 
@@ -516,7 +531,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.6 - Sync Fix');
+    res.send('v5.7 - Archive Feature');
 });
 
 app.get('/', (req, res) => {
