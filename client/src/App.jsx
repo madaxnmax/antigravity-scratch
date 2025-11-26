@@ -783,15 +783,23 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                 </div>
                             ) : (
                                 <div className="w-full max-w-3xl">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <div className={`w-6 h-6 rounded bg-slate-700 text-white flex items-center justify-center text-xs font-bold`}>{msg.name ? msg.name[0] : '?'}</div>
-                                        <span className="text-sm font-bold text-gray-900">{msg.name}</span>
-                                        {/* Full Timestamp */}
-                                        <span className="text-xs text-gray-400 ml-auto" title={msg.rawDate ? new Date(msg.rawDate * 1000).toLocaleString() : ''}>
-                                            {msg.rawDate
-                                                ? new Date(msg.rawDate * 1000).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                                : msg.timestamp}
-                                        </span>
+                                    <div className="mb-2">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className={`w-6 h-6 rounded bg-slate-700 text-white flex items-center justify-center text-xs font-bold`}>{msg.name ? msg.name[0] : '?'}</div>
+                                            <span className="text-sm font-bold text-gray-900">{msg.name}</span>
+                                            {/* Full Timestamp */}
+                                            <span className="text-xs text-gray-400 ml-auto" title={msg.rawDate ? new Date(msg.rawDate * 1000).toLocaleString() : ''}>
+                                                {msg.rawDate
+                                                    ? new Date(msg.rawDate * 1000).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                                    : msg.timestamp}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 space-y-0.5 pl-8 border-l-2 border-gray-100 ml-3">
+                                            <div><span className="font-bold">Subject:</span> {msg.subject}</div>
+                                            <div><span className="font-bold">From:</span> {msg.from?.map(f => f.name ? `${f.name} <${f.email}>` : f.email).join(', ')}</div>
+                                            <div><span className="font-bold">To:</span> {msg.to?.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
+                                            {msg.cc && msg.cc.length > 0 && <div><span className="font-bold">Cc:</span> {msg.cc.map(c => c.name ? `${c.name} <${c.email}>` : c.email).join(', ')}</div>}
+                                        </div>
                                     </div>
                                     <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4 shadow-sm rounded-r-lg">
                                         <div dangerouslySetInnerHTML={{ __html: msg.text }} className="prose prose-sm max-w-none" />
@@ -1752,7 +1760,11 @@ const MetalFlowApp = () => {
                     name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
                     text: m.body,
                     timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    rawDate: m.date
+                    rawDate: m.date,
+                    subject: m.subject,
+                    from: m.from,
+                    to: m.to,
+                    cc: m.cc
                 }));
 
                 setCurrentMessages(mappedMessages);
