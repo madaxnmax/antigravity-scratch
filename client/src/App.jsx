@@ -1431,7 +1431,7 @@ const MetalFlowApp = () => {
 
     // Logging for debugging
     useEffect(() => {
-        console.log("MetalFlowApp Mounted");
+        console.log("MetalFlowApp Mounted - Version: 2025-11-26 13:30 (Custom Stock Fix)");
     }, []);
 
     useEffect(() => {
@@ -1627,13 +1627,23 @@ const MetalFlowApp = () => {
             let stocks = [];
             if (stockSizes.size > 0) {
                 stocks = Array.from(stockSizes).map(sizeStr => {
+                    // Handle "Custom" or invalid strings by falling back to default
+                    if (!sizeStr || sizeStr.toLowerCase() === 'custom') {
+                        return { width: 48, length: 96, count: 100 };
+                    }
+
                     // Parse "48x96" or similar
                     const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
                     let width = 48, length = 96;
-                    if (parts.length >= 2) {
+
+                    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                         width = parts[0];
                         length = parts[1];
+                    } else {
+                        // Fallback if parsing fails
+                        return { width: 48, length: 96, count: 100 };
                     }
+
                     return { width, length, count: 100 }; // Default high count for optimization
                 });
             } else {
