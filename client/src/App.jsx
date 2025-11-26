@@ -532,7 +532,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
     useEffect(() => {
         if (thread) {
             setSubject(thread.subject);
-            setToField(thread.to || [thread.senderEmail]);
+            setToField(thread.to || (thread.senderEmail ? [thread.senderEmail] : []));
         }
     }, [thread]);
 
