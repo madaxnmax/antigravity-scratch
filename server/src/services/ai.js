@@ -2,12 +2,20 @@ const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
 const synonymMappings = require('./synonym_dictionary.json');
+const logger = require('./logger');
 
 class AIService {
     constructor() {
-        this.openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (apiKey) {
+            this.openai = new OpenAI({
+                apiKey: apiKey,
+            });
+            logger.info('OpenAI client initialized');
+        } else {
+            this.openai = null;
+            logger.warn('OPENAI_API_KEY missing - AI features will be disabled');
+        }
         this.synonymMappings = synonymMappings;
     }
 
@@ -41,6 +49,11 @@ class AIService {
     }
 
     async parseEmail(content) {
+        if (!this.openai) {
+            logger.error('Attempted to parse email without OpenAI API key');
+            throw new Error('OpenAI API key is not configured');
+        }
+
         const prompt = `
         We are an organization that sells various grades of plastic in different forms—sheets, rods, tubes, and rings. Each quote is customized based on the customer’s request, which is often presented in unstructured email formats. To generate accurate quotes, we need to convert this information into a structured table format. Different materials and larger sizes have higher costs, so our columns include all the variables necessary for our quote configurator to deliver precise pricing. We receive quotation requests from customers via email.
 
@@ -140,7 +153,7 @@ class AIService {
             return parsedData;
 
         } catch (error) {
-            console.error("AI Parsing Error:", error);
+            logger.error("AI Parsing Error:", error);
             throw error;
         }
     }

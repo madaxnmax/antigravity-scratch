@@ -1,0 +1,11 @@
+node_modules
+.git
+.DS_Store
+gh_2.83.1_macOS_arm64
+gh_2.83.1_macOS_arm64.zip
+railway
+railway-v4.11.1-aarch64-apple-darwin.tar.gz
+supabase_darwin_arm64.tar.gz
+supabase-cli
+_AiLogic_Backup
+_configurator_backup
