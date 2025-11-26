@@ -357,9 +357,15 @@ app.post('/api/sync', async (req, res) => {
     try {
         const grants = await nylas.grants.list();
         if (grants.data.length > 0) {
-            // Sync first grant for now
-            await syncService.syncThreads(grants.data[0].id);
-            res.json({ success: true, message: 'Sync started' });
+            // Sync ALL grants
+            const results = await Promise.allSettled(grants.data.map(grant => syncService.syncThreads(grant.id)));
+            const failed = results.filter(r => r.status === 'rejected');
+
+            if (failed.length > 0) {
+                logger.warn(`Sync partially failed. ${failed.length} grants failed.`);
+            }
+
+            res.json({ success: true, message: `Sync started for ${grants.data.length} accounts` });
         } else {
             res.status(400).json({ error: 'No connected accounts' });
         }
