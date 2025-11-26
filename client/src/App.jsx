@@ -1246,10 +1246,11 @@ class ErrorBoundary extends React.Component {
 
 // --- 4. SETTINGS MODAL ---
 const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGrantId }) => {
+    console.log("SettingsModal render. isOpen:", isOpen, "Grants:", grants?.length);
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-lg shadow-xl overflow-hidden">
                 <div className="bg-slate-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                     <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
