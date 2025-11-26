@@ -1585,137 +1585,93 @@ const MetalFlowApp = () => {
         try {
             console.log("Preparing optimization...");
 
-            // 1. Parse Requirements from Cart
-            // 1. Parse Requirements from Cart
-            const requirements = cart.filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet').map(item => {
-                let width, length;
+            console.log("Preparing optimization (Paranoid Mode)...");
 
-                // Priority 1: Raw dimensions (if available)
-                if (item.specs && item.specs.rawDims) {
-                    width = item.specs.rawDims.width;
-                    length = item.specs.rawDims.length;
-                }
-
-                // Priority 2: Parse from dims string (legacy/fallback)
-                if ((!width || !length) && item.specs && item.specs.dims) {
-                    // Handle "Custom" or malformed strings
-                    if (item.specs.dims.toLowerCase().includes('custom')) {
-                        // Try to recover from formState if it was saved (it's not currently saved in item)
-                        // Fallback to 12x12 for custom if no other info
-                        width = 12;
-                        length = 12;
-                    } else {
-                        const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
-                        if (parts.length === 3) {
-                            width = parts[1];
-                            length = parts[2];
-                        } else if (parts.length === 2) {
-                            width = parts[0];
-                            length = parts[1];
-                        }
-                    }
-                }
-
-                // Priority 3: Hard fallback to prevent 422
-                if (!width || isNaN(width) || width <= 0) width = 12;
-                if (!length || isNaN(length) || length <= 0) length = 12;
-
-                return {
-                    width: parseFloat(width),
-                    length: parseFloat(length),
-                    count: parseInt(item.qty) || 1,
-                    originalItem: item // For debugging
-                };
-            });
-
-            console.log("Parsed Requirements (Final):", requirements);
-
-            if (requirements.length === 0) {
-                alert("No cut pieces in cart to optimize.");
-                return;
-            }
-
-            // 2. Parse Stock from Cart Items
-            // Collect all unique stock sizes specified in the cart
-            const stockSizes = new Set();
-            cart.forEach(item => {
-                if (item.specs?.stockSize) {
-                    stockSizes.add(item.specs.stockSize);
-                }
-            });
-
+            // --- PARANOID STOCK PARSING ---
             let stocks = [];
-            if (stockSizes.size > 0) {
-                stocks = Array.from(stockSizes).map(sizeStr => {
-                    // Handle "Custom" or invalid strings by falling back to default
-                    if (!sizeStr || sizeStr.toLowerCase() === 'custom') {
-                        return { width: 48, length: 96, count: 100 };
-                    }
-
-                    // Parse "48x96" or similar
-                    const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
-                    let width = 48, length = 96;
-
-                    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                        width = parts[0];
-                        length = parts[1];
-                    } else {
-                        // Fallback if parsing fails
-                        return { width: 48, length: 96, count: 100 };
-                    }
-
-                    return { width, length, count: 100 }; // Default high count for optimization
+            try {
+                const stockSizes = new Set();
+                cart.forEach(item => {
+                    if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
                 });
-            } else {
-                // Default fallback if no stock size specified
-                stocks = [
-                    { width: 48, length: 96, count: 100 },
-                    { width: 36, length: 48, count: 100 }
-                ];
+
+                if (stockSizes.size > 0) {
+                    stocks = Array.from(stockSizes).map(sizeStr => {
+                        try {
+                            if (!sizeStr || sizeStr.toLowerCase().includes('custom')) {
+                                return { length: 96, width: 48, count: 100 };
+                            }
+                            const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+                            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                return { width: Number(parts[0]), length: Number(parts[1]), count: 100 };
+                            }
+                        } catch (e) { console.error("Stock parse error:", e); }
+                        return { length: 96, width: 48, count: 100 }; // Fallback
+                    });
+                } else {
+                    stocks = [{ length: 96, width: 48, count: 100 }];
+                }
+            } catch (e) {
+                console.error("Stock generation error:", e);
+                stocks = [{ length: 96, width: 48, count: 100 }];
             }
 
-            // 3. Get Kerf and Trim (Hardcoded default for now as they are in ConfigForm state which is not passed here)
-            // TODO: Lift ConfigForm state to QuoteBuilder to pass these preferences.
-            const kerf = 0.125;
-            const trim = 0.25;
+            // --- PARANOID REQUIREMENTS PARSING ---
+            let requirements = [];
+            try {
+                requirements = cart
+                    .filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet')
+                    .map(item => {
+                        try {
+                            let w = 12, l = 12, c = 1; // Safe defaults
 
-            console.log("Raw Cart Items:", cart);
-            console.log("Raw Stocks:", stocks);
+                            // Try Raw
+                            if (item.specs?.rawDims?.width) w = item.specs.rawDims.width;
+                            if (item.specs?.rawDims?.length) l = item.specs.rawDims.length;
+
+                            // Try String
+                            if ((w === 12 || l === 12) && item.specs?.dims) {
+                                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                                if (parts.length >= 2) {
+                                    // Heuristic: usually smallest is width? No, stick to order.
+                                    // If 3 parts (T x W x L), take last 2.
+                                    if (parts.length === 3) { w = parts[1]; l = parts[2]; }
+                                    else { w = parts[0]; l = parts[1]; }
+                                }
+                            }
+
+                            // Validate & Cast
+                            w = Number(w);
+                            l = Number(l);
+                            c = Number(item.qty);
+
+                            if (isNaN(w) || w <= 0) w = 12;
+                            if (isNaN(l) || l <= 0) l = 12;
+                            if (isNaN(c) || c <= 0) c = 1;
+
+                            return { width: w, length: l, count: c };
+                        } catch (e) {
+                            console.error("Item parse error:", e);
+                            return { width: 12, length: 12, count: 1 };
+                        }
+                    });
+            } catch (e) {
+                console.error("Requirements generation error:", e);
+            }
 
             const payload = {
-                stocks: stocks.map(s => ({
-                    length: Number(s.length),
-                    width: Number(s.width),
-                    count: Number(s.count)
-                })),
-                requirements: requirements.map(r => {
-                    const l = parseFloat(r.length);
-                    const w = parseFloat(r.width);
-                    const c = parseInt(r.count);
-
-                    // Detailed validation logging
-                    if (isNaN(l) || isNaN(w) || isNaN(c) || l <= 0 || w <= 0 || c <= 0) {
-                        console.warn("Invalid requirement filtered out:", { original: r, parsed: { l, w, c } });
-                        return null;
-                    }
-                    return { length: l, width: w, count: c };
-                }).filter(Boolean),
-                kerf: parseFloat(kerf) || 0
+                stocks: stocks,
+                requirements: requirements,
+                kerf: 0.125
             };
 
-            // Double check payload integrity
-            if (payload.stocks.some(s => isNaN(s.length) || isNaN(s.width) || isNaN(s.count))) {
-                console.error("Invalid stock dimensions detected:", payload.stocks);
-                alert("Internal Error: Invalid stock dimensions.");
-                return;
-            }
+            console.log("PARANOID PAYLOAD:", JSON.stringify(payload, null, 2));
 
+            // Final sanity check
             if (payload.requirements.length === 0) {
-                alert("No valid cut pieces found to optimize. Please check dimensions.");
+                alert("No valid items to optimize.");
                 return;
             }
-
-            console.log("Sending optimization payload:", payload);
 
             const res = await fetch('/opticutter/optimize', {
                 method: 'POST',
