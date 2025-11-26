@@ -1038,7 +1038,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 }
             }
         }
-    }, [isOpen, productContext, activeThread, initialStep]);
+    }, [isOpen]); // Only run on open to prevent resets during polling
 
     useEffect(() => {
         if (step === 2 && cart.length > 0 && !selectedItemId) {
