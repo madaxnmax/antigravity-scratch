@@ -725,6 +725,38 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
     const [accountNumber, setAccountNumber] = useState("");
     const [contactName, setContactName] = useState("");
     const [isCrmResolved, setIsCrmResolved] = useState(false);
+    const [optimizationResult, setOptimizationResult] = useState(null);
+    const [isOptimizing, setIsOptimizing] = useState(false);
+
+    const handleOptimize = async () => {
+        setIsOptimizing(true);
+        try {
+            // Simple parsing for demo: assume last dim is length
+            const requirements = cart.map(item => {
+                const parts = item.specs.dims.split('x');
+                const lengthStr = parts[parts.length - 1].replace('"', '').trim();
+                return {
+                    length: parseFloat(lengthStr) || 10,
+                    count: item.qty
+                };
+            });
+
+            const stocks = [{ length: 144, count: 1000, price: 100 }]; // Standard 12ft stock
+
+            const res = await fetch('/opticutter/optimize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stocks, requirements })
+            });
+
+            const data = await res.json();
+            setOptimizationResult(data);
+        } catch (err) {
+            console.error("Optimization failed", err);
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
 
     const getMockSpecs = (type) => {
         switch (type) {
@@ -874,7 +906,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                     </div>
                                     <div className="p-4 border-t border-gray-200 bg-white">
                                         <div className="flex justify-between text-sm font-bold text-gray-700 mb-4"><span>Est. Total</span><span>--</span></div>
-                                        <button onClick={() => setStep(2)} disabled={cart.length === 0} className={`w-full py-3 rounded font-bold shadow transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>Calculate Costs <ArrowRight size={16} className="inline ml-1" /></button>
+                                        <button onClick={() => { setStep(2); handleOptimize(); }} disabled={cart.length === 0} className={`w-full py-3 rounded font-bold shadow transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>Calculate Costs <ArrowRight size={16} className="inline ml-1" /></button>
                                     </div>
                                 </div>
                             </div>
@@ -939,20 +971,31 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                     <div className="flex-1 flex flex-col gap-4 h-full overflow-hidden">
                                         <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-h-0">
                                             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex-shrink-0">
-                                                <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 text-sm uppercase"><Box size={16} className="text-blue-600" /> Cut Plan Optimization</h3>
+                                                <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 text-sm uppercase"><Box size={16} className="text-blue-600" /> Cut Plan Optimization {isOptimizing && <span className="text-xs text-blue-500 animate-pulse">Running...</span>}</h3>
                                                 <div className="w-full aspect-[3/4] bg-gray-100 border border-gray-300 relative rounded mb-3 flex flex-col">
-                                                    <div className="flex-1 flex items-end w-full gap-1 p-3">
-                                                        <div className="w-1/3 h-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold rounded-t shadow-sm">Part</div>
-                                                        <div className="w-1/3 h-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold rounded-t shadow-sm">Part</div>
-                                                        <div className="w-1/3 h-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold rounded-t shadow-sm">Part</div>
-                                                        <div className="w-1/3 h-[30%] bg-green-500 text-white flex items-center justify-center text-[8px] font-bold rounded-t shadow-sm">Remnant</div>
-                                                        <div className="w-[10%] h-[10%] bg-red-500 text-white flex items-center justify-center text-[6px] font-bold rounded-t shadow-sm">Scrap</div>
-                                                    </div>
-                                                    <div className="text-center text-[10px] text-gray-500 pb-1 font-mono">Stock Length: 120"</div>
+                                                    {optimizationResult ? (
+                                                        <div className="flex-1 p-4 overflow-y-auto">
+                                                            <div className="text-xs font-bold mb-2">Solution Found</div>
+                                                            {optimizationResult.solution && optimizationResult.solution.layouts && optimizationResult.solution.layouts.map((layout, i) => (
+                                                                <div key={i} className="mb-2 bg-white p-2 border border-gray-200 rounded">
+                                                                    <div className="text-[10px] text-gray-500">Stock: {layout.stock.length}" (Qty: {layout.count})</div>
+                                                                    <div className="flex gap-1 mt-1 h-4">
+                                                                        {layout.cuts && layout.cuts.map((cut, j) => (
+                                                                            <div key={j} style={{ width: `${(cut.length / layout.stock.length) * 100}%` }} className="h-full bg-blue-500 rounded-sm"></div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
+                                                            {isOptimizing ? "Optimizing..." : "No optimization run"}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex justify-between text-xs font-bold text-gray-600 mt-2 border-t border-gray-100 pt-2">
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" />Yield: 85%</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" />Waste: 15%</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" />Yield: {optimizationResult?.solution?.yield ? (optimizationResult.solution.yield * 100).toFixed(1) : '--'}%</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" />Waste: {optimizationResult?.solution?.yield ? (100 - (optimizationResult.solution.yield * 100)).toFixed(1) : '--'}%</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -966,7 +1009,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
