@@ -478,7 +478,7 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose })
     </div>
 );
 
-const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync }) => (
+const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync, onArchive }) => (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center mb-3">
@@ -497,20 +497,32 @@ const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync
         </div>
         <div className="overflow-y-auto flex-1">
             {threads.map(thread => (
-                <div key={thread.id} onClick={() => onSelectThread(thread.id)} className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${activeThreadId === thread.id ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : 'hover:bg-gray-50 border-l-4 border-l-transparent'}`}>
-                    <div className="flex justify-between items-baseline mb-0.5">
-                        <span className={`font-bold text-sm ${activeThreadId === thread.id ? 'text-gray-900' : 'text-gray-900'}`}>{thread.messages[0]?.name}</span>
-                        <span className="text-[10px] text-gray-400 font-medium uppercase whitespace-nowrap ml-2">{thread.timestamp}</span>
+                <div key={thread.id} className={`p-4 border-b border-gray-100 cursor-pointer transition-colors group relative ${activeThreadId === thread.id ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : 'hover:bg-gray-50 border-l-4 border-l-transparent'}`}>
+                    <div onClick={() => onSelectThread(thread.id)}>
+                        <div className="flex justify-between items-baseline mb-0.5">
+                            <span className={`font-bold text-sm ${activeThreadId === thread.id ? 'text-gray-900' : 'text-gray-900'}`}>{thread.messages[0]?.name}</span>
+                            <span className="text-[10px] text-gray-400 font-medium uppercase whitespace-nowrap ml-2">
+                                {thread.fullDate ? new Date(thread.fullDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : thread.timestamp}
+                            </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mb-1.5 truncate font-medium">{thread.customer}</div>
+                        <div className={`font-medium text-sm truncate mb-1 ${activeThreadId === thread.id ? 'text-black' : 'text-gray-700'}`}>{thread.subject}</div>
                     </div>
-                    <div className="text-xs text-gray-500 mb-1.5 truncate font-medium">{thread.customer}</div>
-                    <div className={`font-medium text-sm truncate mb-1 ${activeThreadId === thread.id ? 'text-black' : 'text-gray-700'}`}>{thread.subject}</div>
+                    {/* Archive Action on Hover */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onArchive(thread.id); }}
+                        className="absolute right-2 bottom-2 p-1.5 bg-white border border-gray-200 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 text-gray-500"
+                        title="Archive"
+                    >
+                        <Archive size={14} />
+                    </button>
                 </div>
             ))}
         </div>
     </div>
 );
 
-const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId }) => {
+const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive }) => {
     const messagesEndRef = useRef(null);
     const [tagMenuOpen, setTagMenuOpen] = useState(false);
     const [replyMode, setReplyMode] = useState('replyAll');
@@ -672,7 +684,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                             >
                                 <Plus size={16} /> Build Quote
                             </button>
-                            <button className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Archive size={12} /> Archive</button>
+                            <button onClick={onArchive} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Archive size={12} /> Archive</button>
                         </div>
                     </div>
 
@@ -1523,7 +1535,19 @@ const MetalFlowApp = () => {
     // --- DATA FETCHING (SUPABASE) ---
     const refreshThreads = async () => {
         try {
-            const res = await fetch('/api/threads');
+            // Determine status filter based on activeChannel
+            let statusFilter = 'inbox'; // Default
+            if (activeChannel === 'Assigned Done') {
+                statusFilter = 'done';
+            } else if (activeChannel === 'Inbox') {
+                statusFilter = 'inbox';
+            } else {
+                // For other channels, maybe show all or default to inbox?
+                // Let's stick to inbox for now unless specifically 'Assigned Done'
+                statusFilter = 'inbox';
+            }
+
+            const res = await fetch(`/api/threads?status=${statusFilter}`);
             if (res.ok) {
                 const data = await res.json();
 
@@ -1536,7 +1560,9 @@ const MetalFlowApp = () => {
                         name: t.participants?.[0]?.name || 'Unknown',
                         text: t.snippet || '',
                         timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                    }]
+                    }],
+                    // Add full date object for sorting/display if needed
+                    fullDate: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000) : null
                 }));
 
                 setThreads(mappedThreads);
@@ -1561,12 +1587,36 @@ const MetalFlowApp = () => {
         }
     };
 
+    const handleArchive = async (threadId) => {
+        try {
+            const res = await fetch(`/api/threads/${threadId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'done' })
+            });
+            if (res.ok) {
+                // Remove from current view if we are in Inbox
+                if (activeChannel === 'Inbox' || activeChannel === 'Assigned Open') {
+                    setThreads(threads.filter(t => t.id !== threadId));
+                    if (activeThreadId === threadId) setActiveThreadId(null);
+                }
+                // Refresh to be sure
+                setTimeout(refreshThreads, 500);
+            } else {
+                alert("Failed to archive thread.");
+            }
+        } catch (err) {
+            console.error("Error archiving thread:", err);
+            alert("Error archiving thread.");
+        }
+    };
+
     useEffect(() => {
         refreshThreads();
         // Auto-sync every 15s (silent)
         const interval = setInterval(() => handleSync(true), 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [activeChannel]); // Refresh when channel changes
 
     // Fetch messages for active thread from Supabase
     useEffect(() => {
@@ -1643,39 +1693,105 @@ const MetalFlowApp = () => {
     };
 
     return (
-        <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={handleCompose} />
-            <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} onRefresh={refreshThreads} />
+        <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={() => setIsComposeOpen(true)} />
+
+            {/* Thread List with Archive Action passed */}
+            <ThreadList
+                threads={threads}
+                activeThreadId={activeThreadId}
+                onSelectThread={setActiveThreadId}
+                onRefresh={refreshThreads}
+                onSync={() => handleSync(false)}
+                onArchive={handleArchive}
+            />
+
             <ThreadView
                 thread={activeThread}
                 onOpenQuote={handleOpenQuote}
-                onViewQuote={handleViewQuote}
-                onCloneQuote={handleCloneQuote}
+                onViewQuote={(id) => alert(`View Quote ${id}`)}
+                onCloneQuote={(id) => alert(`Clone Quote ${id}`)}
                 pendingReply={pendingReply}
                 setPendingReply={setPendingReply}
                 messages={currentMessages}
                 setMessages={setCurrentMessages}
-                allTags={allTags}
-                onUpdateTags={handleUpdateTags}
-                grants={grants} // Pass grants for mentions
-                defaultGrantId={defaultGrantId} // Pass default identity
+                allTags={INITIAL_TAGS}
+                onUpdateTags={(newTags) => {
+                    const updated = { ...activeThread, tags: newTags };
+                    setThreads(threads.map(t => t.id === activeThread.id ? updated : t));
+                }}
+                grants={grants}
+                defaultGrantId={defaultGrantId}
+                onArchive={() => handleArchive(activeThreadId)}
             />
 
-            {/* Quote Builder Modal */}
+            {/* Modals */}
             {isQuoteModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <QuoteBuilder
-                        isOpen={isQuoteModalOpen}
-                        onClose={() => setIsQuoteModalOpen(false)}
-                        initialStep={quoteStep}
-                        productContext={activeProductContext}
-                        activeThread={threads.find(t => t.id === activeThreadId)}
-                        onSubmitQuote={(quote) => {
-                            console.log("Quote Submitted:", quote);
-                            setIsQuoteModalOpen(false);
-                            setPendingReply(`Here is the quote you requested (Quote #${quote.id} for $${quote.amount}). Let me know if you have any questions.`);
-                        }}
-                    />
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+                            <h2 className="text-lg font-bold flex items-center gap-2"><Plus size={20} className="text-blue-600" /> New Quote Configuration</h2>
+                            <button onClick={() => setIsQuoteModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                                        <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide border-b border-gray-100 pb-2">Product Selection</h3>
+                                        <div className="grid grid-cols-3 gap-3 mb-4">
+                                            {['Sheet', 'Rod', 'Tube', 'Cut Piece/Sand', 'Cut Rod', 'Cut Tube', 'Washer'].map(type => (
+                                                <button
+                                                    key={type}
+                                                    onClick={() => setQuoteType(type)}
+                                                    className={`px-3 py-2 rounded text-sm font-medium transition-all border ${quoteType === type ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
+                                                >
+                                                    {type}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <ConfigForm type={quoteType} formState={formState} onChange={handleFormChange} />
+                                    </div>
+                                </div>
+                                <div className="space-y-6">
+                                    <OptimizationResult result={optimizationResult} onOptimize={handleOptimize} isOptimizing={isOptimizing} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-gray-200 bg-white flex justify-end gap-3">
+                            <button onClick={() => setIsQuoteModalOpen(false)} className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded transition-colors">Cancel</button>
+                            <button className="px-5 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-sm transition-colors flex items-center gap-2">
+                                <CheckCircle size={18} /> Generate Quote
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+                    <div className="w-[600px] bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300">
+                        <SettingsView onClose={() => setIsSettingsOpen(false)} allTags={INITIAL_TAGS} />
+                    </div>
+                </div>
+            )}
+
+            {isComposeOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-3 border-b border-gray-200 bg-gray-50">
+                            <h3 className="font-bold text-gray-700">New Message</h3>
+                            <button onClick={() => setIsComposeOpen(false)}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <input className="w-full border-b border-gray-200 py-2 outline-none text-sm" placeholder="To" />
+                            <input className="w-full border-b border-gray-200 py-2 outline-none text-sm" placeholder="Subject" />
+                            <textarea className="w-full h-64 outline-none resize-none text-sm" placeholder="Write your message..."></textarea>
+                        </div>
+                        <div className="p-3 border-t border-gray-200 flex justify-end gap-2 bg-gray-50">
+                            <button onClick={() => setIsComposeOpen(false)} className="px-4 py-2 text-gray-600 text-sm hover:bg-gray-200 rounded">Discard</button>
+                            <button className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded hover:bg-blue-700 flex items-center gap-2"><Send size={16} /> Send</button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
