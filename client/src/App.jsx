@@ -2083,10 +2083,30 @@ const MetalFlowApp = () => {
             // Optimistic update: Remove from current list if we are filtering by channel
             setThreads(prev => prev.filter(t => t.id !== threadId));
 
+            let payload = {};
+            const specialChannels = ['Assigned Open', 'Assigned Later', 'Assigned Done', 'Sent', 'Trash', 'Spam', 'Inbox'];
+
+            if (specialChannels.includes(targetChannel)) {
+                // Handle special status views
+                if (targetChannel === 'Assigned Done') payload.status = 'done';
+                else if (targetChannel === 'Assigned Open') payload.status = 'inbox';
+                else if (targetChannel === 'Trash') payload.status = 'trash';
+                else if (targetChannel === 'Spam') payload.status = 'spam';
+                else if (targetChannel === 'Assigned Later') payload.status = 'snoozed';
+                else if (targetChannel === 'Inbox') {
+                    payload.status = 'inbox';
+                    payload.channel = 'Inbox';
+                }
+            } else {
+                // It's a Shared Inbox
+                payload.channel = targetChannel;
+                payload.status = 'inbox'; // Ensure it's visible (unarchive if needed)
+            }
+
             const res = await fetch(`/api/threads/${threadId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ channel: targetChannel })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) {
@@ -2094,7 +2114,9 @@ const MetalFlowApp = () => {
                 alert("Failed to move thread.");
             } else {
                 // Success
-                console.log(`Moved thread ${threadId} to ${targetChannel}`);
+                console.log(`Moved thread ${threadId} to ${targetChannel}`, payload);
+                // If we moved to a shared inbox, we might want to refresh counts or similar
+                fetchNewCount();
             }
         } catch (err) {
             console.error("Move thread error:", err);
