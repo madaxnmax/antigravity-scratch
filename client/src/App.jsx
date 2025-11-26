@@ -391,15 +391,45 @@ const SettingsView = ({ onClose, allTags }) => {
 };
 
 const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, newCount, onMoveThread }) => {
+    const [dragOverChannel, setDragOverChannel] = useState(null);
+
     const handleDrop = (e, targetChannel) => {
         e.preventDefault();
+        setDragOverChannel(null);
         const threadId = e.dataTransfer.getData("text/plain");
         if (threadId && onMoveThread) {
             onMoveThread(threadId, targetChannel);
         }
     };
 
-    const handleDragOver = (e) => e.preventDefault();
+    const handleDragOver = (e, channelId) => {
+        e.preventDefault();
+        if (dragOverChannel !== channelId) {
+            setDragOverChannel(channelId);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverChannel(null);
+    };
+
+    const getChannelClass = (id) => {
+        const isActive = activeChannel === id;
+        const isDragOver = dragOverChannel === id;
+
+        if (isDragOver) return 'w-full text-left px-3 py-1.5 rounded-md flex items-center gap-3 transition-colors text-sm bg-blue-600/50 text-white ring-2 ring-blue-500 z-10 relative';
+        if (isActive) return 'w-full text-left px-3 py-1.5 rounded-md flex items-center gap-3 transition-colors text-sm bg-slate-800 text-white';
+        return 'w-full text-left px-3 py-1.5 rounded-md flex items-center gap-3 transition-colors text-sm text-slate-400 hover:bg-slate-800/50 hover:text-white';
+    };
+
+    const getSimpleChannelClass = (id) => {
+        const isActive = activeChannel === id;
+        const isDragOver = dragOverChannel === id;
+
+        if (isDragOver) return 'w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm bg-blue-600/50 text-white ring-2 ring-blue-500 z-10 relative';
+        if (isActive) return 'w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm bg-slate-800 text-white';
+        return 'w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm text-slate-400 hover:bg-slate-800/50 hover:text-white';
+    };
 
     return (
         <div className="w-64 bg-[#0f172a] text-slate-300 flex flex-col h-screen border-r border-slate-800 flex-shrink-0 font-sans">
@@ -422,9 +452,10 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
                             <button
                                 key={item.id}
                                 onClick={() => setActiveChannel(item.id)}
-                                onDragOver={handleDragOver}
+                                onDragOver={(e) => handleDragOver(e, item.id)}
+                                onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, item.id)}
-                                className={`w-full text-left px-3 py-1.5 rounded-md flex items-center gap-3 transition-colors text-sm ${activeChannel === item.id ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+                                className={getChannelClass(item.id)}
                             >
                                 <item.icon size={16} />
                                 <span className="flex-1">{item.label}</span>
@@ -453,9 +484,10 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
                             <button
                                 key={ch}
                                 onClick={() => setActiveChannel(ch)}
-                                onDragOver={handleDragOver}
+                                onDragOver={(e) => handleDragOver(e, ch)}
+                                onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, ch)}
-                                className={`w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm ${activeChannel === ch ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+                                className={getSimpleChannelClass(ch)}
                             >
                                 <span>{ch}</span>{ch === 'Inbox' && newCount > 0 && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">{newCount}</span>}
                             </button>
@@ -470,9 +502,10 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
                             <button
                                 key={`Shapes-${ch}`}
                                 onClick={() => setActiveChannel(`Shapes-${ch}`)}
-                                onDragOver={handleDragOver}
+                                onDragOver={(e) => handleDragOver(e, `Shapes-${ch}`)}
+                                onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, `Shapes-${ch}`)}
-                                className={`w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm ${activeChannel === `Shapes-${ch}` ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+                                className={getSimpleChannelClass(`Shapes-${ch}`)}
                             >
                                 <span>{ch}</span>
                             </button>
@@ -487,9 +520,10 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
                             <button
                                 key={`Parts-${ch}`}
                                 onClick={() => setActiveChannel(`Parts-${ch}`)}
-                                onDragOver={handleDragOver}
+                                onDragOver={(e) => handleDragOver(e, `Parts-${ch}`)}
+                                onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, `Parts-${ch}`)}
-                                className={`w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm ${activeChannel === `Parts-${ch}` ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+                                className={getSimpleChannelClass(`Parts-${ch}`)}
                             >
                                 <span>{ch}</span>
                             </button>
