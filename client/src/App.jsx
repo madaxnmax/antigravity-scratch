@@ -1104,7 +1104,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                 qty: parseInt(formState.quantity, 10) || 1,
                 specs: {
                     mat: `${formState.grade}/${formState.color}`,
-                    dims: formatDims(itemForDims, activeType)
+                    dims: formatDims(itemForDims, activeType),
+                    stockSize: formState.stockSize // Save selected stock size
                 },
                 price: pricingData.unitPrice,
                 total: pricingData.totalPrice,
@@ -1614,23 +1615,34 @@ const MetalFlowApp = () => {
                 return;
             }
 
-            // 2. Parse Stock from Form State (or default)
-            // Default to 48x96 if not set or custom
-            let stockWidth = 48;
-            let stockLength = 96;
+            // 2. Parse Stock from Cart Items
+            // Collect all unique stock sizes specified in the cart
+            const stockSizes = new Set();
+            cart.forEach(item => {
+                if (item.specs?.stockSize) {
+                    stockSizes.add(item.specs.stockSize);
+                }
+            });
 
-            // If formState has stockSize, parse it
-            // Note: formState here is from the QuoteBuilder, but handleOptimize is inside MetalFlowApp.
-            // We need to access the current form state or let the user define available stock.
-            // For this iteration, we'll use a hardcoded stock list or a simple default, 
-            // as the "ConfigForm" state is local to QuoteBuilder and not easily accessible here without lifting state up further.
-            // However, we can use the `activeProductContext` or add a stock selector in the "Cost Analysis" view.
-            // For now, we will assume standard sheet sizes.
-
-            const stocks = [
-                { width: 48, length: 96, count: 100 },
-                { width: 36, length: 48, count: 100 }
-            ];
+            let stocks = [];
+            if (stockSizes.size > 0) {
+                stocks = Array.from(stockSizes).map(sizeStr => {
+                    // Parse "48x96" or similar
+                    const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+                    let width = 48, length = 96;
+                    if (parts.length >= 2) {
+                        width = parts[0];
+                        length = parts[1];
+                    }
+                    return { width, length, count: 100 }; // Default high count for optimization
+                });
+            } else {
+                // Default fallback if no stock size specified
+                stocks = [
+                    { width: 48, length: 96, count: 100 },
+                    { width: 36, length: 48, count: 100 }
+                ];
+            }
 
             // 3. Get Kerf and Trim (Hardcoded default for now as they are in ConfigForm state which is not passed here)
             // TODO: Lift ConfigForm state to QuoteBuilder to pass these preferences.
