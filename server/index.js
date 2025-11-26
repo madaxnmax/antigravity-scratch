@@ -23,9 +23,6 @@ if (nylasApiKey) {
     });
 }
 
-app.get('/', (req, res) => {
-    res.send('Hello World from Railway!');
-});
 
 app.get('/supabase', async (req, res) => {
     if (!supabase) {
