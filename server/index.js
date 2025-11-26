@@ -334,7 +334,7 @@ app.post('/opticutter/optimize', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-});
+
 
 // Serve static files from the React client
 const clientDistPath = path.join(__dirname, '../client/dist');
