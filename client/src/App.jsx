@@ -1017,8 +1017,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         if (isOpen) {
             setStep(initialStep);
             if (initialStep === 1 && cart.length === 0) {
-                const initialSpecs = { grade: 'G10 / Natural', dims: '123" x 41"', mat: 'G10 / Natural' };
-                setCart([{ id: 101, type: 'Cut Piece/Sand', desc: 'G10 2" x 41" x 123"', qty: 1, specs: initialSpecs }]);
+                // Empty cart initialization
             }
 
             if (productContext) setActiveType(productContext);
