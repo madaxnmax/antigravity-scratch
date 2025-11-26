@@ -1940,7 +1940,7 @@ const MetalFlowApp = () => {
 
     const fetchNewCount = async () => {
         try {
-            const res = await fetch('/api/threads/count');
+            const res = await fetch(`/api/threads/count?channel=${encodeURIComponent(activeChannel)}`);
             if (res.ok) {
                 const data = await res.json();
                 setNewCount(data.count);
@@ -1949,6 +1949,10 @@ const MetalFlowApp = () => {
             console.error("Error fetching new count:", err);
         }
     };
+
+    useEffect(() => {
+        fetchNewCount();
+    }, [activeChannel]);
 
     const handleSync = async (silent = false) => {
         try {

@@ -104,14 +104,24 @@ class DatabaseService {
         }
     }
 
-    async getNewThreadCount() {
+    async getNewThreadCount(channel = 'Inbox') {
         if (!this.supabase) return 0;
 
-        const { count, error } = await this.supabase
+        let query = this.supabase
             .from('threads')
             .select('*', { count: 'exact', head: true })
             .eq('is_new', true)
             .or('status.eq.inbox,status.eq.Open,status.is.null'); // Only count new threads in inbox
+
+        if (channel) {
+            if (channel === 'Inbox') {
+                query = query.or('channel.eq.Inbox,channel.is.null');
+            } else {
+                query = query.eq('channel', channel);
+            }
+        }
+
+        const { count, error } = await query;
 
         if (error) {
             logger.error('DatabaseService: Failed to get new thread count', error);

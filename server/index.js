@@ -444,7 +444,8 @@ app.get('/api/audit', async (req, res) => {
 // Get New Thread Count
 app.get('/api/threads/count', async (req, res) => {
     try {
-        const count = await dbService.getNewThreadCount();
+        const channel = req.query.channel || 'Inbox';
+        const count = await dbService.getNewThreadCount(channel);
         res.json({ count });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch thread count' });
