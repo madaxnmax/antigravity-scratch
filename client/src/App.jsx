@@ -1000,18 +1000,34 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         }
     };
 
-    const getMockSpecs = (type) => {
-        switch (type) {
-            case 'Sheet': return { grade: 'G10 FR4', color: 'Natural', dims: '0.250" x 36" x 48"' };
-            case 'Cut Piece/Sand': return { grade: 'G10 FR4', color: 'Natural', dims: '0.125" x 2" x 41"', ops: 'Sanded' };
-            default: return { grade: 'G10', color: 'Natural', dims: 'Custom' };
-        }
-    };
+    const calculatedYield = useMemo(() => {
+        if (!optimizationResult?.solution) return 0;
+        if (optimizationResult.solution.yield) return optimizationResult.solution.yield;
 
-    const getDescription = (type, specs) => {
-        if (type === 'Cut Piece/Sand') return `G10 ${specs.dims.split('"')[0]}" x ${specs.dims.split('x')[1]}" x ${specs.dims.split('x')[2]}"`;
-        return `${specs.grade} ${specs.dims}`;
-    }
+        let totalStockArea = 0;
+        let totalPartsArea = 0;
+
+        if (optimizationResult.solution.layouts) {
+            optimizationResult.solution.layouts.forEach(layout => {
+                const stockL = parseFloat(layout.stock.length);
+                const stockW = parseFloat(layout.stock.width);
+                const stockArea = stockL * stockW;
+                totalStockArea += stockArea * layout.count;
+
+                if (layout.panels) {
+                    let layoutPartsArea = 0;
+                    layout.panels.forEach(panel => {
+                        layoutPartsArea += (parseFloat(panel.length) * parseFloat(panel.width));
+                    });
+                    totalPartsArea += layoutPartsArea * layout.count;
+                }
+            });
+        }
+
+        return totalStockArea > 0 ? totalPartsArea / totalStockArea : 0;
+    }, [optimizationResult]);
+
+
 
     useEffect(() => {
         if (isOpen) {
@@ -1286,11 +1302,23 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                         <div className="flex-1 p-4 overflow-y-auto">
                                                             <div className="text-xs font-bold mb-2">Solution Found</div>
                                                             {optimizationResult.solution && optimizationResult.solution.layouts && optimizationResult.solution.layouts.map((layout, i) => (
-                                                                <div key={i} className="mb-2 bg-white p-2 border border-gray-200 rounded">
-                                                                    <div className="text-[10px] text-gray-500">Stock: {layout.stock.length}" (Qty: {layout.count})</div>
-                                                                    <div className="flex gap-1 mt-1 h-4">
-                                                                        {layout.cuts && layout.cuts.map((cut, j) => (
-                                                                            <div key={j} style={{ width: `${(cut.length / layout.stock.length) * 100}%` }} className="h-full bg-blue-500 rounded-sm"></div>
+                                                                <div key={i} className="mb-4 bg-white p-2 border border-gray-200 rounded">
+                                                                    <div className="text-[10px] text-gray-500 mb-1">Stock: {layout.stock.length}" x {layout.stock.width}" (Qty: {layout.count})</div>
+                                                                    <div className="relative bg-gray-100 border border-gray-300 w-full" style={{ aspectRatio: `${layout.stock.length}/${layout.stock.width}` }}>
+                                                                        {layout.panels && layout.panels.map((panel, pIndex) => (
+                                                                            <div
+                                                                                key={pIndex}
+                                                                                className="absolute bg-blue-500 border border-white opacity-80 flex items-center justify-center text-[8px] text-white font-bold overflow-hidden"
+                                                                                style={{
+                                                                                    left: `${(parseFloat(panel.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                                                                    top: `${(parseFloat(panel.y) / parseFloat(layout.stock.width)) * 100}%`,
+                                                                                    width: `${(parseFloat(panel.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                                                                    height: `${(parseFloat(panel.width) / parseFloat(layout.stock.width)) * 100}%`
+                                                                                }}
+                                                                                title={`${panel.length}" x ${panel.width}"`}
+                                                                            >
+                                                                                {panel.length}x{panel.width}
+                                                                            </div>
                                                                         ))}
                                                                     </div>
                                                                 </div>
@@ -1303,8 +1331,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                     )}
                                                 </div>
                                                 <div className="flex justify-between text-xs font-bold text-gray-600 mt-2 border-t border-gray-100 pt-2">
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" />Yield: {optimizationResult?.solution?.yield ? (optimizationResult.solution.yield * 100).toFixed(1) : '--'}%</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" />Waste: {optimizationResult?.solution?.yield ? (100 - (optimizationResult.solution.yield * 100)).toFixed(1) : '--'}%</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" />Yield: {calculatedYield ? (calculatedYield * 100).toFixed(1) : '--'}%</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" />Waste: {calculatedYield ? (100 - (calculatedYield * 100)).toFixed(1) : '--'}%</div>
                                                 </div>
                                             </div>
                                         </div>
