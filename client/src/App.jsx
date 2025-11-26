@@ -10,7 +10,7 @@ import {
     Inbox as InboxIcon, Tag, Info, ChevronRight, Layout,
     MessageSquare, FileSignature, Bot, Shield, Calendar,
     Reply, ReplyAll, AlarmClock, CircleDashed, ExternalLink,
-    UserPlus, Image as ImageIcon, Quote, FileText
+    UserPlus, Image as ImageIcon, Quote, FileText, Upload
 } from 'lucide-react';
 
 // --- 1. MOCK DATA & TYPES ---
