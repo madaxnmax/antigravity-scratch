@@ -99,6 +99,30 @@ app.get('/nylas', async (req, res) => {
     }
 });
 
+app.get('/nylas/threads', async (req, res) => {
+    if (!nylas) {
+        logger.error('Nylas not configured request failed');
+        return res.status(500).json({ error: 'Nylas not configured' });
+    }
+
+    try {
+        const grants = await nylas.grants.list();
+        const firstGrant = grants.data[0];
+        if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
+
+        const limit = req.query.limit || 10;
+        const threads = await nylas.threads.list({
+            identifier: firstGrant.id,
+            queryParams: { limit: parseInt(limit) }
+        });
+
+        res.json(threads.data);
+    } catch (error) {
+        logger.error("Nylas Threads Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/nylas/thread/:id', async (req, res) => {
     try {
         const grants = await nylas.grants.list();
