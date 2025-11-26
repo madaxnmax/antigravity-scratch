@@ -1301,6 +1301,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                     {optimizationResult ? (
                                                         <div className="flex-1 p-4 overflow-y-auto">
                                                             <div className="text-xs font-bold mb-2">Solution Found</div>
+                                                            {console.log("Rendering Optimization Result:", optimizationResult)}
                                                             {optimizationResult.solution && optimizationResult.solution.layouts && optimizationResult.solution.layouts.map((layout, i) => (
                                                                 <div key={i} className="mb-4 bg-white p-2 border border-gray-200 rounded">
                                                                     <div className="text-[10px] text-gray-500 mb-1">Stock: {layout.stock.length}" x {layout.stock.width}" (Qty: {layout.count})</div>
