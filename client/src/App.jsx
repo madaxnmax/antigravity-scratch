@@ -1637,24 +1637,36 @@ const MetalFlowApp = () => {
             const kerf = 0.125;
             const trim = 0.25;
 
+            console.log("Raw Cart Items:", cart);
+            console.log("Raw Stocks:", stocks);
+
             const payload = {
                 stocks: stocks.map(s => ({
-                    length: parseFloat(s.length),
-                    width: parseFloat(s.width),
-                    count: parseInt(s.count)
+                    length: Number(s.length),
+                    width: Number(s.width),
+                    count: Number(s.count)
                 })),
                 requirements: requirements.map(r => {
                     const l = parseFloat(r.length);
                     const w = parseFloat(r.width);
                     const c = parseInt(r.count);
+
+                    // Detailed validation logging
                     if (isNaN(l) || isNaN(w) || isNaN(c) || l <= 0 || w <= 0 || c <= 0) {
-                        console.warn("Invalid requirement found:", r);
+                        console.warn("Invalid requirement filtered out:", { original: r, parsed: { l, w, c } });
                         return null;
                     }
                     return { length: l, width: w, count: c };
                 }).filter(Boolean),
                 kerf: parseFloat(kerf) || 0
             };
+
+            // Double check payload integrity
+            if (payload.stocks.some(s => isNaN(s.length) || isNaN(s.width) || isNaN(s.count))) {
+                console.error("Invalid stock dimensions detected:", payload.stocks);
+                alert("Internal Error: Invalid stock dimensions.");
+                return;
+            }
 
             if (payload.requirements.length === 0) {
                 alert("No valid cut pieces found to optimize. Please check dimensions.");
