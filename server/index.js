@@ -8,6 +8,10 @@ const logger = require('./src/services/logger');
 const app = express();
 const port = process.env.PORT || 3000;
 
+
+// Middleware
+app.use(express.json());
+
 // Request Logging Middleware
 app.use((req, res, next) => {
     logger.info(`Incoming request: ${req.method} ${req.url}`, {
@@ -284,7 +288,6 @@ app.get('/nylas/thread/:id', async (req, res) => {
     }
 });
 
-app.use(express.json());
 
 app.get('/opticutter', (req, res) => {
     const opticutterKey = process.env.OPTICUTTER_API_KEY;
