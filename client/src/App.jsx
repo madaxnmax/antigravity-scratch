@@ -1110,16 +1110,21 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         return '';
     };
 
-    const handleOptimize = async () => {
+    const handleOptimize = async (itemId = selectedItemId) => {
+        if (!itemId) return;
+
+        const targetItems = cart.filter(i => i.id === itemId);
+        if (targetItems.length === 0) return;
+
         setIsOptimizing(true);
         try {
-            console.log("Preparing optimization (Paranoid Mode - QuoteBuilder)...");
+            console.log(`Preparing optimization for item ${itemId} (Paranoid Mode - QuoteBuilder)...`);
 
             // --- PARANOID STOCK PARSING ---
             let stocks = [];
             try {
                 const stockSizes = new Set();
-                cart.forEach(item => {
+                targetItems.forEach(item => {
                     if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
                 });
 
@@ -1147,7 +1152,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             // --- PARANOID REQUIREMENTS PARSING ---
             let requirements = [];
             try {
-                requirements = cart
+                requirements = targetItems
                     .filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet')
                     .map(item => {
                         try {
@@ -1194,7 +1199,9 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             console.log("PARANOID PAYLOAD (QuoteBuilder):", JSON.stringify(payload, null, 2));
 
             if (payload.requirements.length === 0) {
-                alert("No valid items to optimize.");
+                // alert("No valid items to optimize."); // Don't alert on auto-run
+                setOptimizationResult(null);
+                setIsOptimizing(false);
                 return;
             }
 
@@ -1252,6 +1259,13 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             setSelectedItemId(cart[0].id);
         }
     }, [step, cart, selectedItemId]);
+
+    // Auto-optimize when selected item changes
+    useEffect(() => {
+        if (step === 2 && selectedItemId) {
+            handleOptimize(selectedItemId);
+        }
+    }, [step, selectedItemId]);
 
     const addToCart = async () => {
         // Parse dimensions for API
@@ -1455,7 +1469,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                     </div>
                                     <div className="p-4 border-t border-gray-200 bg-white">
                                         <div className="flex justify-between text-sm font-bold text-gray-700 mb-4"><span>Est. Total</span><span>--</span></div>
-                                        <button onClick={() => { setStep(2); handleOptimize(); }} disabled={cart.length === 0} className={`w-full py-3 rounded font-bold shadow transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>Calculate Costs <ArrowRight size={16} className="inline ml-1" /></button>
+                                        <button onClick={() => { setStep(2); }} disabled={cart.length === 0} className={`w-full py-3 rounded font-bold shadow transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>Calculate Costs <ArrowRight size={16} className="inline ml-1" /></button>
                                     </div>
                                 </div>
                             </div>
