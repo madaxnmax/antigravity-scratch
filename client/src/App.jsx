@@ -1482,8 +1482,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                 </div>
                                                 <div className="font-bold text-gray-800 text-sm mb-3">{item.desc}</div>
                                                 <div className="text-xs text-gray-500 space-y-1 border-l-2 border-gray-100 pl-2">
-                                                    <div>Qty: {item.qty}</div>
-                                                    {item.specs && <><div>Mat: {item.specs.mat}</div><div>Dims: {item.specs.dims}</div></>}
+                                                    <div>Qty: {item.qty || 0}</div>
+                                                    {item.specs && <><div>Mat: {item.specs.mat || 'N/A'}</div><div>Dims: {item.specs.dims || 'N/A'}</div></>}
                                                 </div>
                                             </div>
                                         ))}
@@ -1509,8 +1509,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                                 <div className="flex justify-between items-start mb-2"><span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-600">{item.type}</span>{isSelected && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}</div>
                                                 <div className="font-bold text-gray-800 text-sm mb-4">{item.desc}</div>
                                                 <div className="flex justify-between items-end text-xs text-gray-500 border-t border-gray-100 pt-2">
-                                                    <div><span className="block text-[10px] text-gray-400 uppercase">Qty</span><span className="font-mono text-gray-700 font-bold text-sm">{item.qty}</span></div>
-                                                    <div className="text-right"><span className="block text-[10px] text-gray-400 uppercase">Grade</span><span className="text-gray-700 font-medium">{item.specs ? item.specs.mat.split('/')[0] : 'G10'}</span></div>
+                                                    <div><span className="block text-[10px] text-gray-400 uppercase">Qty</span><span className="font-mono text-gray-700 font-bold text-sm">{item.qty || 0}</span></div>
+                                                    <div className="text-right"><span className="block text-[10px] text-gray-400 uppercase">Grade</span><span className="text-gray-700 font-medium">{item.specs && item.specs.mat ? item.specs.mat.split('/')[0] : 'G10'}</span></div>
                                                 </div>
                                             </div>
                                         );
