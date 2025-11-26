@@ -752,23 +752,39 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
             let finalTo = toField;
             if (!finalTo || finalTo.length === 0) {
                 console.log("SYSTEM ACTION: toField is empty, attempting to derive recipients...");
+
+                // 1. Try to find the last HUMAN sender from messages
                 if (messages && messages.length > 0) {
-                    const lastMsg = messages[messages.length - 1];
-                    // If last message has 'from' field (and it's not me/system), reply to them
-                    if (lastMsg.from && Array.isArray(lastMsg.from)) {
-                        // Filter out 'System' or my own email if possible (simplified here)
-                        finalTo = lastMsg.from.map(f => f.email || f);
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        const msg = messages[i];
+                        // Skip system messages or messages from 'system' sender
+                        if (msg.sender === 'system' || (msg.from && msg.from.some(f => (f.email || f).includes('system@metalflow.app')))) {
+                            continue;
+                        }
+
+                        if (msg.from && Array.isArray(msg.from)) {
+                            const validEmails = msg.from
+                                .map(f => f.email || f)
+                                .filter(e => !e.includes('system@metalflow.app') && !e.includes('no-reply'));
+
+                            if (validEmails.length > 0) {
+                                finalTo = validEmails;
+                                break; // Found a valid human sender
+                            }
+                        }
                     }
                 }
 
-                // Fallback to thread sender if still empty
+                // 2. Fallback to thread sender if still empty
                 if ((!finalTo || finalTo.length === 0) && thread && thread.senderEmail) {
                     finalTo = [thread.senderEmail];
                 }
             }
 
-            // Ensure finalTo is an array of strings
-            finalTo = (finalTo || []).map(t => typeof t === 'object' ? t.email : t).filter(Boolean);
+            // Ensure finalTo is an array of strings and filter out system emails just in case
+            finalTo = (finalTo || [])
+                .map(t => typeof t === 'object' ? t.email : t)
+                .filter(e => e && !e.includes('system@metalflow.app'));
 
             if (!finalTo || finalTo.length === 0) {
                 console.error("SYSTEM ACTION: Could not determine 'To' recipient.");
