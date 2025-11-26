@@ -389,14 +389,14 @@ const SettingsView = ({ onClose, allTags }) => {
     );
 };
 
-const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings }) => (
+const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose }) => (
     <div className="w-64 bg-[#0f172a] text-slate-300 flex flex-col h-screen border-r border-slate-800 flex-shrink-0 font-sans">
         <div className="p-5 flex items-center gap-2">
             <img src="https://www.atlasfibre.com/wp-content/uploads/2023/03/logo.png" alt="Atlas Fibre" className="h-8 object-contain" />
         </div>
 
         <div className="px-4 mb-4">
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium flex items-center justify-center gap-2 shadow-sm transition-all text-sm">
+            <button onClick={onCompose} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium flex items-center justify-center gap-2 shadow-sm transition-all text-sm">
                 <Plus size={18} /> Compose
             </button>
         </div>
@@ -1095,11 +1095,15 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             setCart([...cart, {
                 id: Date.now(),
                 type: activeType,
-                desc: pricingData.description || `${formState.grade} ${formState.color} ${activeType}`,
+                desc: (activeType === 'Cut Piece/Sand')
+                    ? `${formState.grade} ${formState.color} ${thickness}" x ${width}" x ${length}"`
+                    : (pricingData.description || `${formState.grade} ${formState.color} ${activeType}`),
                 qty: parseInt(formState.quantity) || 1,
                 specs: {
                     mat: `${formState.grade}/${formState.color}`,
-                    dims: pricingData.description || `${thickness}" x ${width}" x ${length}"`
+                    dims: (activeType === 'Cut Piece/Sand')
+                        ? `${thickness}" x ${width}" x ${length}"`
+                        : (pricingData.description || `${thickness}" x ${width}" x ${length}"`)
                 },
                 price: pricingData.unitPrice,
                 total: pricingData.totalPrice,
@@ -1677,9 +1681,18 @@ const MetalFlowApp = () => {
         }
     };
 
+    const handleCompose = () => {
+        console.log("Composing new message...");
+        setActiveThreadId(null);
+        setCurrentMessages([]);
+        setActiveChannel('Inbox');
+        // Optionally set a flag to indicate "New Message" mode if needed, 
+        // but activeThreadId === null effectively does this in ThreadView
+    };
+
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} />
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={handleCompose} />
             <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} onRefresh={refreshThreads} />
             <ThreadView
                 thread={activeThread}
