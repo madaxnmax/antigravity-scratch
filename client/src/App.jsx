@@ -1613,6 +1613,44 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+class QuoteErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("QuoteBuilder Crash:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg p-6 rounded-lg shadow-2xl border-l-4 border-red-500">
+                        <h2 className="text-xl font-bold text-red-600 mb-2">Something went wrong in QuoteBuilder</h2>
+                        <p className="text-sm text-gray-600 mb-4">The quote modal crashed. Here is the error:</p>
+                        <pre className="bg-gray-100 p-3 rounded text-xs text-red-800 overflow-auto max-h-40 mb-4">
+                            {this.state.error && this.state.error.toString()}
+                        </pre>
+                        <button
+                            onClick={() => { this.setState({ hasError: false }); this.props.onClose(); }}
+                            className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900 font-bold text-sm"
+                        >
+                            Close Modal
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 // --- 4. SETTINGS MODAL ---
 const TeammatesSettings = () => {
     const [teammates, setTeammates] = useState([]);
@@ -2335,15 +2373,18 @@ const MetalFlowApp = () => {
 
             {/* Modals */}
             {/* Modals */}
-            <QuoteBuilder
-                isOpen={isQuoteModalOpen}
-                onClose={() => setIsQuoteModalOpen(false)}
-                productContext={activeProductContext}
-                activeThread={activeThread}
-                onSubmitQuote={handleSaveQuote}
-                initialCart={quoteInitialCart}
-                readOnly={quoteReadOnly}
-            />
+            {/* Modals */}
+            <QuoteErrorBoundary onClose={() => setIsQuoteModalOpen(false)}>
+                <QuoteBuilder
+                    isOpen={isQuoteModalOpen}
+                    onClose={() => setIsQuoteModalOpen(false)}
+                    productContext={activeProductContext}
+                    activeThread={activeThread}
+                    onSubmitQuote={handleSaveQuote}
+                    initialCart={quoteInitialCart}
+                    readOnly={quoteReadOnly}
+                />
+            </QuoteErrorBoundary>
 
             {isSettingsOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
