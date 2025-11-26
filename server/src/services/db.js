@@ -104,6 +104,22 @@ class DatabaseService {
         }
     }
 
+    async updateThreadDraft(threadId, draft) {
+        if (!this.supabase) return null;
+
+        // logger.info(`DatabaseService: Updating thread ${threadId} draft`); // Commented out to reduce noise
+
+        const { error } = await this.supabase
+            .from('threads')
+            .update({ draft: draft })
+            .eq('id', threadId);
+
+        if (error) {
+            logger.error('DatabaseService: Failed to update thread draft', { error, threadId });
+            throw error;
+        }
+    }
+
     async getNewThreadCount(channel = 'Inbox') {
         if (!this.supabase) return 0;
 

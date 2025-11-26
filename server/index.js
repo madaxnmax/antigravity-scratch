@@ -482,6 +482,10 @@ app.patch('/api/threads/:id', async (req, res) => {
             await dbService.updateThreadChannel(req.params.id, channel);
         }
 
+        if (req.body.draft !== undefined) {
+            await dbService.updateThreadDraft(req.params.id, req.body.draft);
+        }
+
         res.json({ success: true });
     } catch (error) {
         logger.error('Failed to update thread', error);
@@ -556,6 +560,16 @@ app.post('/api/pricing/calculate', async (req, res) => {
     } catch (error) {
         logger.error('Pricing Route Error:', error);
         res.status(500).json({ error: 'Failed to calculate price' });
+    }
+});
+
+app.get('/api/materials', async (req, res) => {
+    try {
+        const items = await pricingService.getAllItems();
+        res.json(items);
+    } catch (error) {
+        logger.error('Materials API Error:', error);
+        res.status(500).json({ error: 'Failed to fetch materials' });
     }
 });
 

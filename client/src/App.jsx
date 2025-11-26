@@ -200,6 +200,50 @@ const getDescription = (type, specs) => {
     }
 }
 
+const generateOutlookBody = (newReplyHtml, originalMessage) => {
+    if (!originalMessage) return newReplyHtml;
+
+    const date = new Date(originalMessage.rawDate * 1000);
+    const formattedDate = date.toLocaleString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    }).replace(',', ''); // Remove comma after weekday if needed, but localeString usually fine.
+
+    // Helper to format list of participants
+    const formatParticipants = (list) => {
+        if (!list) return '';
+        return list.map(p => {
+            const name = p.name || p.email || p;
+            const email = p.email || p;
+            return name === email ? email : `${name} &lt;${email}&gt;`;
+        }).join('; ');
+    };
+
+    const fromStr = formatParticipants(originalMessage.from);
+    const toStr = formatParticipants(originalMessage.to);
+    const ccStr = formatParticipants(originalMessage.cc);
+
+    const headerBlock = `
+    <div style='border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0in 0in 0in'>
+        <p style='font-family:"Calibri",sans-serif; font-size:11pt; margin:0;'>
+            <b>From:</b> ${fromStr}<br>
+            <b>Sent:</b> ${formattedDate}<br>
+            <b>To:</b> ${toStr}<br>
+            <b>Cc:</b> ${ccStr}<br>
+            <b>Subject:</b> ${originalMessage.subject}
+        </p>
+    </div>
+    <br>
+    `;
+
+    return newReplyHtml + "<br><br>" + headerBlock + (originalMessage.text || ""); // originalMessage.text contains HTML body in our mapping
+};
+
 // Helper Icon Component
 const SmileIcon = ({ size, className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
@@ -463,7 +507,7 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
                 <div>
                     <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Personal Inbox</div>
                     <nav className="space-y-0.5">
-                        {[{ id: 'Assigned Open', label: 'Assigned Open', icon: InboxIcon, count: 12 }, { id: 'Assigned Later', label: 'Assigned Later', icon: Clock }, { id: 'Assigned Done', label: 'Assigned Done', icon: CheckCircle2 }, { id: 'Sent', label: 'Sent', icon: Send }, { id: 'Trash', label: 'Trash', icon: Trash2 }, { id: 'Spam', label: 'Spam', icon: Ban }].map(item => (
+                        {[{ id: 'Assigned Open', label: 'Assigned Open', icon: InboxIcon, count: 12 }, { id: 'Assigned Later', label: 'Assigned Later', icon: Clock }, { id: 'Assigned Done', label: 'Assigned Done', icon: CheckCircle2 }, { id: 'Sent', label: 'Sent', icon: Send }, { id: 'Trash', label: 'Trash', icon: Ban }].map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => setActiveChannel(item.id)}
@@ -629,16 +673,19 @@ const ThreadList = ({ threads, activeThreadId, selectedThreadIds, onSelectThread
     </div>
 );
 
-const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive, onMarkAsNew }) => {
+const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive, onMarkAsNew, draft, onUpdateDraft }) => {
     const messagesEndRef = useRef(null);
     const [tagMenuOpen, setTagMenuOpen] = useState(false);
-    const [replyMode, setReplyMode] = useState('replyAll');
-    const [sendMenuOpen, setSendMenuOpen] = useState(false);
+    const [replyMode, setReplyMode] = useState('replyAll'); // This state is not used, can be removed if not needed
+    const [sendMenuOpen, setSendMenuOpen] = useState(false); // This state is not used, can be removed if not needed
     const [sendStatus, setSendStatus] = useState('Resolved');
-    const [subject, setSubject] = useState(thread?.subject || "");
 
-    const [toField, setToField] = useState(thread?.to || []);
-    const [ccField, setCcField] = useState(thread?.cc || []);
+    // Use draft for subject, toField, ccField, and pendingReply
+    const [subject, setSubject] = useState(draft?.subject || thread?.subject || "");
+    const [toField, setToField] = useState(draft?.to || thread?.to || []);
+    const [ccField, setCcField] = useState(draft?.cc || thread?.cc || []);
+    const [pendingReply, setPendingReply] = useState(draft?.body || "");
+
 
     const [chatMessages, setChatMessages] = useState([{ id: 1, user: "Mike Ross", text: "Did we confirm specs?", time: "10:30 AM" }]);
     const [newChatMsg, setNewChatMsg] = useState("");
@@ -658,13 +705,46 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
     const crmInfo = thread ? resolveCustomerFromEmail(thread.senderEmail) : null;
 
+    const lastLoadedThreadId = useRef(null);
+
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+    // Load draft when thread changes
     useEffect(() => {
         if (thread) {
-            setSubject(thread.subject);
-            setToField(thread.to || (thread.senderEmail ? [thread.senderEmail] : []));
+            setSubject(draft?.subject || thread.subject || "");
+            setToField(draft?.to || (thread.to && thread.to.length > 0 ? thread.to : (thread.senderEmail ? [thread.senderEmail] : [])));
+            setCcField(draft?.cc || thread.cc || []);
+            setPendingReply(draft?.body || "");
+            setIsComposing(!!draft?.body || !!draft?.to?.length || !!draft?.cc?.length); // If there's any draft content, show composer
+
+            // Mark this thread as loaded so we can safely save changes
+            lastLoadedThreadId.current = thread.id;
+        } else {
+            // Clear state if no thread selected
+            setSubject("");
+            setToField([]);
+            setCcField([]);
+            setPendingReply("");
+            setIsComposing(false);
+            lastLoadedThreadId.current = null;
         }
-    }, [thread]);
+    }, [thread, draft]);
+
+    // Save draft when relevant fields change
+    useEffect(() => {
+        // Only save if the current thread matches the one we last loaded into state
+        // This prevents overwriting a new thread's draft with the previous thread's state during switching
+        if (thread && onUpdateDraft && lastLoadedThreadId.current === thread.id) {
+            onUpdateDraft({
+                subject,
+                to: toField,
+                cc: ccField,
+                body: pendingReply
+            });
+        }
+    }, [subject, toField, ccField, pendingReply, thread, onUpdateDraft]);
+
 
     // Auto-mark as read timer
     useEffect(() => {
@@ -777,6 +857,116 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
     };
 
     // Send Email Logic
+    // Reply Logic
+    const handleReply = () => {
+        console.log("SYSTEM ACTION: Handling Reply...");
+        let replyTo = [];
+        let subject = thread?.subject || "";
+
+        // Find last human message to reply to
+        let lastMsg = null;
+        if (messages && messages.length > 0) {
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (msg.sender !== 'system' && (!msg.from || !msg.from.some(f => (f.email || f).includes('system@metalflow.app')))) {
+                    lastMsg = msg;
+                    break;
+                }
+            }
+        }
+
+        if (lastMsg) {
+            // Reply: To = Reply-To (if exists, but we don't have it in mapped msg yet, assume From) OR From
+            // In our mapped msg, we don't strictly have Reply-To, so we use From.
+            const sender = lastMsg.from ? lastMsg.from.map(f => f.email || f) : [];
+            replyTo = sender.filter(e => !e.includes('system@metalflow.app') && !e.includes('no-reply'));
+
+            // Subject: Add Re: if missing
+            if (!subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+        } else if (thread) {
+            // Fallback
+            replyTo = [thread.senderEmail];
+            if (!subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+        }
+
+        setSubject(subject);
+        setToField(replyTo);
+        setCcField([]);
+        setIsComposing(true);
+    };
+
+    const handleReplyAll = () => {
+        console.log("SYSTEM ACTION: Handling Reply All...");
+        let replyTo = [];
+        let replyCc = [];
+        let subject = thread?.subject || "";
+
+        // Find last human message
+        let lastMsg = null;
+        if (messages && messages.length > 0) {
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (msg.sender !== 'system' && (!msg.from || !msg.from.some(f => (f.email || f).includes('system@metalflow.app')))) {
+                    lastMsg = msg;
+                    break;
+                }
+            }
+        }
+
+        if (lastMsg) {
+            // To: Sender + Original To (excluding system)
+            const sender = lastMsg.from ? lastMsg.from.map(f => f.email || f) : [];
+            const originalTo = lastMsg.to ? lastMsg.to.map(t => t.email || t) : [];
+
+            // Combine and unique
+            const allTo = [...new Set([...sender, ...originalTo])];
+            replyTo = allTo.filter(e => !e.includes('system@metalflow.app') && !e.includes('no-reply'));
+
+            // Cc: Original Cc
+            const originalCc = lastMsg.cc ? lastMsg.cc.map(c => c.email || c) : [];
+            replyCc = originalCc.filter(e => !e.includes('system@metalflow.app') && !e.includes('no-reply'));
+
+            // Subject
+            if (!subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+
+        } else if (thread) {
+            // Fallback
+            replyTo = [thread.senderEmail];
+            replyCc = thread.cc || [];
+            if (!subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+        }
+
+        // Filter out my own emails (from grants) to avoid emailing myself
+        const myEmails = grants.map(g => g.email);
+        replyTo = replyTo.filter(e => !myEmails.includes(e));
+        replyCc = replyCc.filter(e => !myEmails.includes(e));
+
+        // Ensure at least one recipient if possible, else fallback to sender
+        if (replyTo.length === 0 && lastMsg && lastMsg.from) {
+            replyTo = lastMsg.from.map(f => f.email || f).filter(e => !e.includes('system@metalflow.app'));
+        }
+
+        console.log("SYSTEM ACTION: Calculated ReplyAll To:", replyTo);
+        console.log("SYSTEM ACTION: Calculated ReplyAll Cc:", replyCc);
+
+        // Generate Outlook-style body
+        const outlookBody = generateOutlookBody("", lastMsg);
+        setPendingReply(outlookBody);
+
+        setSubject(subject);
+        setToField(replyTo);
+        setCcField(replyCc);
+        setIsComposing(true);
+    };
+
     // Send Email Logic
     const handleSendReply = async (e) => {
         if (e) {
@@ -853,7 +1043,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                 to: finalTo,
                 cc: ccField,
                 subject: subject,
-                body: pendingReply,
+                body: pendingReply, // Use the pendingReply which now contains the Outlook body (if reply)
                 replyToMessageId: messages.length > 0 ? messages[messages.length - 1].id : undefined
             };
 
@@ -1002,13 +1192,13 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                         <div className="p-4">
                             <div className="flex gap-2 mb-4">
                                 <button
-                                    onClick={() => setIsComposing(true)}
+                                    onClick={handleReply}
                                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
                                 >
                                     <Reply size={16} /> Reply
                                 </button>
                                 <button
-                                    onClick={() => setIsComposing(true)}
+                                    onClick={handleReplyAll}
                                     className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
                                 >
                                     <ReplyAll size={16} /> Reply all
@@ -1056,13 +1246,11 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                         /* EMAIL DRAFT VIEW */
                         <div>
                             {/* Editable Draft Header */}
-                            <div className="bg-gray-50 border-b border-gray-200 p-3 px-4">
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                        <Users size={10} /> <span className="font-bold text-gray-700">Shared draft</span>
-                                    </div>
-                                    <button onClick={() => setIsComposing(false)} className="text-gray-400 hover:text-gray-600">
-                                        <X size={14} />
+                            <div className="bg-gray-50 border-b border-gray-200 p-3 px-4 rounded-t-lg">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="font-bold text-gray-700 text-sm">Reply</h3>
+                                    <button onClick={() => setIsComposing(false)} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded">
+                                        <X size={16} />
                                     </button>
                                 </div>
                                 <div className="grid gap-2">
@@ -2004,6 +2192,66 @@ const TagsSettings = () => {
     );
 };
 
+const MaterialsManagerSettings = () => {
+    const [materials, setMaterials] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/api/materials')
+            .then(res => res.json())
+            .then(data => {
+                setMaterials(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to fetch materials:", err);
+                setLoading(false);
+            });
+    }, []);
+
+    return (
+        <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Materials Manager</h2>
+            <p className="text-gray-600 mb-6">Manage your stock materials, pricing, and inventory levels here.</p>
+
+            {loading ? (
+                <div className="text-gray-500 flex items-center gap-2"><RefreshCw className="animate-spin" size={16} /> Loading materials...</div>
+            ) : (
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase font-bold text-xs">
+                            <tr>
+                                <th className="px-6 py-3">Item Number</th>
+                                <th className="px-6 py-3">Grade</th>
+                                <th className="px-6 py-3">Dimensions</th>
+                                <th className="px-6 py-3">Base Price</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {materials.map((item, i) => (
+                                <tr key={i} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-bold text-gray-900">{item.ItemNumber}</td>
+                                    <td className="px-6 py-4 text-gray-700">{item.NEMAGrade} {item.Color}</td>
+                                    <td className="px-6 py-4 text-gray-700">
+                                        {item.Thicknesses ? `${item.Thicknesses}" x ${item.WidthIn}" x ${item.LengthIn}"` :
+                                            item.Diameter ? `${item.Diameter}" Dia x ${item.LengthIn}"` : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 font-mono text-gray-900">${item.BasePrice?.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                            {materials.length === 0 && (
+                                <tr>
+                                    <td colSpan="4" className="px-6 py-8 text-center text-gray-500 italic">No materials found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGrantId }) => {
     const [activeTab, setActiveTab] = useState('Teammates');
 
@@ -2032,6 +2280,9 @@ const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGran
                                 <button onClick={() => setActiveTab('Tags')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Tags' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
                                     <Tag size={18} /> Tags
                                 </button>
+                                <button onClick={() => setActiveTab('Materials Manager')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Materials Manager' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    <Package size={18} /> Materials Manager
+                                </button>
                                 <button onClick={() => setActiveTab('Connected Accounts')} className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 ${activeTab === 'Connected Accounts' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}>
                                     <Mail size={18} /> Connected Accounts
                                 </button>
@@ -2048,6 +2299,7 @@ const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGran
                     <div className="flex-1 overflow-y-auto px-8 pb-8">
                         {activeTab === 'Teammates' && <TeammatesSettings />}
                         {activeTab === 'Tags' && <TagsSettings />}
+                        {activeTab === 'Materials Manager' && <MaterialsManagerSettings />}
                         {activeTab === 'Connected Accounts' && (
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Connected Accounts</h2>
@@ -2102,7 +2354,6 @@ const MetalFlowApp = () => {
     const [isComposeOpen, setIsComposeOpen] = useState(false); // Compose Modal State
     const [activeProductContext, setActiveProductContext] = useState('Sheet');
     const [quoteStep, setQuoteStep] = useState(1);
-    const [pendingReply, setPendingReply] = useState("");
     const [currentMessages, setCurrentMessages] = useState([]);
     const [allTags, setAllTags] = useState(INITIAL_TAGS);
     const [grants, setGrants] = useState([]);
@@ -2111,6 +2362,35 @@ const MetalFlowApp = () => {
     const [quoteReadOnly, setQuoteReadOnly] = useState(false);
     const [quoteInitialCart, setQuoteInitialCart] = useState([]);
     const [messageRefreshTrigger, setMessageRefreshTrigger] = useState(0);
+
+    // Drafts state for persistence
+    // Draft Saving Logic
+    const saveDraftDebounced = useRef(null);
+
+    const handleSaveDraft = (threadId, draftData) => {
+        // Update local thread state immediately for UI responsiveness
+        setThreads(prev => prev.map(t =>
+            t.id === threadId ? { ...t, draft: { ...t.draft, ...draftData } } : t
+        ));
+
+        // Debounce the API call
+        if (saveDraftDebounced.current) {
+            clearTimeout(saveDraftDebounced.current);
+        }
+
+        saveDraftDebounced.current = setTimeout(async () => {
+            try {
+                console.log("Saving draft for thread:", threadId, draftData);
+                await fetch(`/api/threads/${threadId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ draft: draftData })
+                });
+            } catch (err) {
+                console.error("Failed to save draft:", err);
+            }
+        }, 1000); // 1 second debounce
+    };
 
 
     // Fetch grants on mount
@@ -2190,10 +2470,27 @@ const MetalFlowApp = () => {
                         timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                     }],
                     // Add full date object for sorting/display if needed
-                    fullDate: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000) : null
+                    fullDate: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000) : null,
+                    // Derive senderEmail if missing (crucial for reply fallback)
+                    senderEmail: t.senderEmail || (t.participants && t.participants.length > 0 ? (t.participants[0].email || t.participants[0].name || t.participants[0]) : '')
                 }));
 
-                setThreads(mappedThreads);
+                setThreads(prevThreads => {
+                    // Create a map of existing drafts to preserve them
+                    const draftMap = new Map();
+                    prevThreads.forEach(t => {
+                        if (t.draft) draftMap.set(t.id, t.draft);
+                    });
+
+                    return mappedThreads.map(newThread => {
+                        const localDraft = draftMap.get(newThread.id);
+                        // If we have a local draft, prefer it to avoid overwriting with stale server data
+                        if (localDraft) {
+                            return { ...newThread, draft: localDraft };
+                        }
+                        return newThread;
+                    });
+                });
                 fetchNewCount(); // Update count whenever threads refresh
             }
         } catch (err) {
@@ -2563,8 +2860,6 @@ const MetalFlowApp = () => {
                 onOpenQuote={handleOpenQuote}
                 onViewQuote={onViewQuote}
                 onCloneQuote={onCloneQuote}
-                pendingReply={pendingReply}
-                setPendingReply={setPendingReply}
                 messages={currentMessages}
                 setMessages={setCurrentMessages}
                 allTags={INITIAL_TAGS}
@@ -2576,6 +2871,9 @@ const MetalFlowApp = () => {
                 defaultGrantId={defaultGrantId}
                 onArchive={() => handleArchive(activeThreadId)}
                 onMarkAsNew={handleMarkAsNew}
+                // Draft Props
+                draft={activeThread?.draft}
+                onUpdateDraft={(data) => activeThread && handleSaveDraft(activeThread.id, data)}
             />
 
             {/* Modals */}

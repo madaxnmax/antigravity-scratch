@@ -109,6 +109,10 @@ class PricingService {
             stock: stock
         };
     }
+
+    async getAllItems() {
+        return this.mockItems;
+    }
 }
 
 module.exports = new PricingService();
