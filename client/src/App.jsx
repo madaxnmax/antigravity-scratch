@@ -840,8 +840,8 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                 <div className="bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm flex items-center gap-4 text-xs text-gray-600">
                                     <div className="flex items-center gap-2 font-bold"><CheckCircle size={14} className="text-green-500" /> Quote #{msg.quoteId} Generated</div>
                                     <div className="h-4 w-px bg-gray-300"></div>
-                                    <button type="button" onClick={() => onViewQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium">View Details</button>
-                                    <button type="button" onClick={() => onCloneQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
+                                    <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: View Details"); onViewQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium">View Details</button>
+                                    <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: Clone Quote"); onCloneQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
                                 </div>
                             ) : (
                                 <div className="w-full max-w-3xl">
@@ -2188,7 +2188,12 @@ const MetalFlowApp = () => {
         }
     };
 
-    const onViewQuote = (id) => {
+    const onViewQuote = (id, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        console.log("SYSTEM ACTION: Attempting to VIEW quote...", id);
         try {
             console.log("View Quote clicked:", id);
             const msg = currentMessages.find(m => m.quoteId === id);
@@ -2209,7 +2214,12 @@ const MetalFlowApp = () => {
         }
     };
 
-    const onCloneQuote = (id) => {
+    const onCloneQuote = (id, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        console.log("SYSTEM ACTION: Attempting to CLONE quote...", id);
         try {
             console.log("Clone Quote clicked:", id);
             const msg = currentMessages.find(m => m.quoteId === id);
