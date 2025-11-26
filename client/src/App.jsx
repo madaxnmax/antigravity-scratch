@@ -617,19 +617,8 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                         <span className="text-sm font-bold text-gray-900">{msg.name}</span>
                                         <span className="text-xs text-gray-400 ml-auto">{msg.timestamp}</span>
                                     </div>
-                                    <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4">
-                                        <div dangerouslySetInnerHTML={{ __html: msg.text }} />
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h2 className="text-lg font-bold text-gray-800">Add Items to Quote</h2>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm shadow-sm transition-all"><FileText size={16} /> Import from Email</button>
-                                                <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm shadow-sm"><Upload size={16} /> Upload CSV</button>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 pt-4 border-t border-gray-100">
-                                            <div className="text-xs font-bold text-gray-500 mb-2">1 Attachment</div>
-                                            <div className="w-24 h-32 border border-gray-200 rounded bg-gray-50 flex items-center justify-center text-xs text-gray-400">PDF</div>
-                                        </div>
+                                    <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4 shadow-sm rounded-r-lg">
+                                        <div dangerouslySetInnerHTML={{ __html: msg.text }} className="prose prose-sm max-w-none" />
                                     </div>
                                 </div>
                             )}
@@ -1182,7 +1171,7 @@ const MetalFlowApp = () => {
                             subject: t.subject,
                             customer: resolveCustomerFromEmail(sender?.email)?.name || "Unknown Customer",
                             customerInitials: (sender?.name || "??").substring(0, 2).toUpperCase(),
-                            timestamp: new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
                             status: "Open",
                             channel: "Inbox",
                             assignee: "Unassigned",
@@ -1220,7 +1209,7 @@ const MetalFlowApp = () => {
                         sender: m.from[0].email === userEmail ? 'user' : 'customer',
                         name: m.from[0].name || m.from[0].email,
                         text: m.body,
-                        timestamp: new Date(m.date * 1000).toLocaleString()
+                        timestamp: m.date ? new Date(m.date * 1000).toLocaleString() : ''
                     }));
                     setCurrentMessages(mappedMessages);
                 }
