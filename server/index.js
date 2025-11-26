@@ -388,11 +388,18 @@ app.get('/api/audit', async (req, res) => {
                     queryParams: { limit: 5 }
                 });
                 audit.nylas.status = 'connected';
-                audit.nylas.threads = nylasRes.data.map(t => ({
-                    id: t.id,
-                    subject: t.subject,
-                    date: new Date(t.lastMessageTimestamp * 1000).toISOString()
-                }));
+                // Debug: Return raw first thread to check fields
+                audit.nylas.raw_sample = nylasRes.data[0];
+
+                audit.nylas.threads = nylasRes.data.map(t => {
+                    const ts = t.last_message_timestamp || t.lastMessageTimestamp || t.date || 0;
+                    return {
+                        id: t.id,
+                        subject: t.subject,
+                        timestamp_raw: ts,
+                        date: ts ? new Date(ts * 1000).toISOString() : 'Invalid Date'
+                    };
+                });
             } else {
                 audit.nylas.status = 'no_grants';
             }
@@ -509,7 +516,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v5.4 - Audit Endpoint');
+    res.send('v5.5 - Audit Raw Debug');
 });
 
 app.get('/', (req, res) => {
