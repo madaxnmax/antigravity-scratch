@@ -390,7 +390,7 @@ const SettingsView = ({ onClose, allTags }) => {
     );
 };
 
-const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose }) => (
+const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, newCount }) => (
     <div className="w-64 bg-[#0f172a] text-slate-300 flex flex-col h-screen border-r border-slate-800 flex-shrink-0 font-sans">
         <div className="p-5 flex items-center gap-2">
             <img src="https://www.atlasfibre.com/wp-content/uploads/2023/03/logo.png" alt="Atlas Fibre" className="h-8 object-contain" />
@@ -434,7 +434,7 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose })
                 <nav className="space-y-0.5">
                     {['Inbox', 'Triage'].map(ch => (
                         <button key={ch} onClick={() => setActiveChannel(ch)} className={`w-full text-left px-3 py-1.5 rounded-md flex justify-between items-center transition-colors text-sm ${activeChannel === ch ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}>
-                            <span>{ch}</span>{ch === 'Inbox' && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">3</span>}
+                            <span>{ch}</span>{ch === 'Inbox' && newCount > 0 && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">{newCount}</span>}
                         </button>
                     ))}
                 </nav>
@@ -522,7 +522,7 @@ const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync
     </div>
 );
 
-const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive }) => {
+const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive, onMarkAsNew }) => {
     const messagesEndRef = useRef(null);
     const [tagMenuOpen, setTagMenuOpen] = useState(false);
     const [replyMode, setReplyMode] = useState('replyAll');
@@ -549,6 +549,17 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
             setToField(thread.to || (thread.senderEmail ? [thread.senderEmail] : []));
         }
     }, [thread]);
+
+    // Auto-mark as read timer
+    useEffect(() => {
+        if (thread && thread.is_new) {
+            const timer = setTimeout(() => {
+                console.log("Auto-marking as read:", thread.id);
+                onMarkAsNew(thread.id, false);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [thread, onMarkAsNew]);
 
     if (!thread) return <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-400">Select a conversation</div>;
 
@@ -684,6 +695,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                             >
                                 <Plus size={16} /> Build Quote
                             </button>
+                            <button onClick={() => onMarkAsNew(thread.id, true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Mail size={12} /> Mark as New</button>
                             <button onClick={onArchive} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Archive size={12} /> Archive</button>
                         </div>
                     </div>
@@ -1208,6 +1220,36 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         }
     };
 
+    const handleMarkAsNew = async (threadId, isNew) => {
+        try {
+            // Optimistic update
+            setThreads(prev => prev.map(t => t.id === threadId ? { ...t, is_new: isNew } : t));
+
+            // If marking as read (isNew=false), decrement count immediately for responsiveness
+            if (!isNew) {
+                setNewCount(prev => Math.max(0, prev - 1));
+            } else {
+                setNewCount(prev => prev + 1);
+            }
+
+            const res = await fetch(`/api/threads/${threadId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_new: isNew })
+            });
+
+            if (!res.ok) {
+                // Revert if failed (simplified, usually we'd re-fetch)
+                refreshThreads();
+            } else {
+                fetchNewCount(); // Ensure accurate count
+            }
+        } catch (err) {
+            console.error("Mark as new error:", err);
+            refreshThreads();
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -1491,6 +1533,7 @@ const MetalFlowApp = () => {
     const [allTags, setAllTags] = useState(INITIAL_TAGS);
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
+    const [newCount, setNewCount] = useState(0);
 
 
     // Fetch grants on mount
@@ -1567,9 +1610,22 @@ const MetalFlowApp = () => {
                 }));
 
                 setThreads(mappedThreads);
+                fetchNewCount(); // Update count whenever threads refresh
             }
         } catch (err) {
             console.error("Error fetching threads:", err);
+        }
+    };
+
+    const fetchNewCount = async () => {
+        try {
+            const res = await fetch('/api/threads/count');
+            if (res.ok) {
+                const data = await res.json();
+                setNewCount(data.count);
+            }
+        } catch (err) {
+            console.error("Error fetching new count:", err);
         }
     };
 
@@ -1695,7 +1751,7 @@ const MetalFlowApp = () => {
 
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={() => setIsComposeOpen(true)} />
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={() => setIsComposeOpen(true)} newCount={newCount} />
 
             {/* Thread List with Archive Action passed */}
             <ThreadList
@@ -1724,6 +1780,7 @@ const MetalFlowApp = () => {
                 grants={grants}
                 defaultGrantId={defaultGrantId}
                 onArchive={() => handleArchive(activeThreadId)}
+                onMarkAsNew={handleMarkAsNew}
             />
 
             {/* Modals */}
