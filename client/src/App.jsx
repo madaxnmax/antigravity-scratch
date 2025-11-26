@@ -544,6 +544,33 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
         }
     };
 
+    const handleChatInput = (e) => {
+        const val = e.target.value;
+        setNewChatMsg(val);
+
+        // Simple mention detection
+        const lastChar = val.slice(-1);
+        if (lastChar === '@') {
+            setMentionQuery('');
+            setMentionCursorIndex(val.length);
+        } else if (mentionQuery !== null) {
+            if (lastChar === ' ') {
+                setMentionQuery(null);
+            } else {
+                setMentionQuery(val.slice(mentionCursorIndex));
+            }
+        }
+    };
+
+    const insertMention = (name) => {
+        if (mentionCursorIndex === null) return;
+        const before = newChatMsg.slice(0, mentionCursorIndex);
+        const after = newChatMsg.slice(mentionCursorIndex + (mentionQuery || '').length);
+        setNewChatMsg(`${before}${name} ${after}`);
+        setMentionQuery(null);
+        setMentionCursorIndex(null);
+    };
+
     // Send Email Logic
     const handleSendReply = async () => {
         if (!pendingReply.trim()) return;
