@@ -105,9 +105,37 @@ app.get('/nylas/grants', async (req, res) => {
     }
     try {
         const grants = await nylas.grants.list();
+        logger.info(`Fetched ${grants.data.length} grants`, { grants: grants.data });
         res.json(grants.data);
     } catch (error) {
         logger.error("Nylas Grants Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/nylas/directory', async (req, res) => {
+    try {
+        const query = req.query.q || '';
+        const grantId = req.query.grantId;
+
+        if (!grantId) {
+            return res.status(400).json({ error: 'Grant ID is required' });
+        }
+
+        // Search contacts in the organization domain
+        // Note: 'source: domain' might require specific scopes or paid Nylas features
+        const contacts = await nylas.contacts.list({
+            identifier: grantId,
+            queryParams: {
+                source: 'domain',
+                email: query // Filter by email/name if supported, or filter locally
+            }
+        });
+
+        logger.info(`Fetched directory contacts for grant ${grantId}`, { count: contacts.data.length });
+        res.json(contacts.data);
+    } catch (error) {
+        logger.error("Nylas Directory Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
