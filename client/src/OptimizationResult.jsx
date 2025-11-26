@@ -59,9 +59,10 @@ const OptimizationResult = ({ result }) => {
                     <div key={i} className="mb-4 bg-white p-2 border border-gray-200 rounded">
                         <div className="text-[10px] text-gray-500 mb-1">Stock: {layout.stock.length}" x {layout.stock.width}" (Qty: {layout.count})</div>
                         <div className="relative bg-gray-100 border border-gray-300 w-full" style={{ aspectRatio: `${layout.stock.length}/${layout.stock.width}` }}>
+                            {/* Render Used Panels */}
                             {layout.panels && layout.panels.map((panel, pIndex) => (
                                 <div
-                                    key={pIndex}
+                                    key={`p-${pIndex}`}
                                     className="absolute bg-blue-500 border border-white opacity-80 flex items-center justify-center text-[8px] text-white font-bold overflow-hidden"
                                     style={{
                                         left: `${(parseFloat(panel.x) / parseFloat(layout.stock.length)) * 100}%`,
@@ -74,7 +75,40 @@ const OptimizationResult = ({ result }) => {
                                     {panel.length}x{panel.width}
                                 </div>
                             ))}
+                            {/* Render Offcuts (Remainders) */}
+                            {layout.remainders && layout.remainders.map((remainder, rIndex) => (
+                                <div
+                                    key={`r-${rIndex}`}
+                                    className="absolute bg-gray-300 border border-white opacity-60 flex items-center justify-center text-[8px] text-gray-700 font-bold overflow-hidden"
+                                    style={{
+                                        left: `${(parseFloat(remainder.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                        top: `${(parseFloat(remainder.y) / parseFloat(layout.stock.width)) * 100}%`,
+                                        width: `${(parseFloat(remainder.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                        height: `${(parseFloat(remainder.width) / parseFloat(layout.stock.width)) * 100}%`
+                                    }}
+                                    title={`Offcut: ${remainder.length}" x ${remainder.width}"`}
+                                >
+                                    {remainder.length}x{remainder.width}
+                                </div>
+                            ))}
                         </div>
+                        {/* Offcut Summary */}
+                        {layout.remainders && layout.remainders.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                <div className="text-[10px] font-bold text-gray-500 mb-1">Offcuts Generated:</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {Object.entries(layout.remainders.reduce((acc, r) => {
+                                        const key = `${r.length}" x ${r.width}"`;
+                                        acc[key] = (acc[key] || 0) + 1;
+                                        return acc;
+                                    }, {})).map(([size, count]) => (
+                                        <span key={size} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+                                            {count}x ({size})
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
