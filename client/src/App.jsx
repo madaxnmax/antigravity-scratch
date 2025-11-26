@@ -840,8 +840,8 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                                 <div className="bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm flex items-center gap-4 text-xs text-gray-600">
                                     <div className="flex items-center gap-2 font-bold"><CheckCircle size={14} className="text-green-500" /> Quote #{msg.quoteId} Generated</div>
                                     <div className="h-4 w-px bg-gray-300"></div>
-                                    <button onClick={() => onViewQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium">View Details</button>
-                                    <button onClick={() => onCloneQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
+                                    <button type="button" onClick={() => onViewQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium">View Details</button>
+                                    <button type="button" onClick={() => onCloneQuote(msg.quoteId)} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
                                 </div>
                             ) : (
                                 <div className="w-full max-w-3xl">
@@ -1628,6 +1628,7 @@ class QuoteErrorBoundary extends React.Component {
     }
 
     render() {
+        console.log("QuoteErrorBoundary Render. Has Error:", this.state.hasError, this.state.error);
         if (this.state.hasError) {
             return (
                 <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2188,32 +2189,42 @@ const MetalFlowApp = () => {
     };
 
     const onViewQuote = (id) => {
-        console.log("View Quote clicked:", id);
-        const msg = currentMessages.find(m => m.quoteId === id);
-        console.log("Found message:", msg);
+        try {
+            console.log("View Quote clicked:", id);
+            const msg = currentMessages.find(m => m.quoteId === id);
+            console.log("Found message:", msg);
 
-        if (msg && msg.quoteData) {
-            console.log("Quote Data:", msg.quoteData);
-            setQuoteInitialCart(msg.quoteData.cart || []);
-            setQuoteReadOnly(true);
-            setIsQuoteModalOpen(true);
-        } else {
-            console.error("Quote data not found for id:", id);
-            alert("Error: Could not load quote details.");
+            if (msg && msg.quoteData) {
+                console.log("Quote Data:", msg.quoteData);
+                setQuoteInitialCart(msg.quoteData.cart || []);
+                setQuoteReadOnly(true);
+                setIsQuoteModalOpen(true);
+            } else {
+                console.error("Quote data not found for id:", id);
+                alert("Error: Could not load quote details.");
+            }
+        } catch (err) {
+            console.error("Error in onViewQuote:", err);
+            alert("An error occurred while opening the quote.");
         }
     };
 
     const onCloneQuote = (id) => {
-        console.log("Clone Quote clicked:", id);
-        const msg = currentMessages.find(m => m.quoteId === id);
+        try {
+            console.log("Clone Quote clicked:", id);
+            const msg = currentMessages.find(m => m.quoteId === id);
 
-        if (msg && msg.quoteData) {
-            setQuoteInitialCart(msg.quoteData.cart || []);
-            setQuoteReadOnly(false);
-            setIsQuoteModalOpen(true);
-        } else {
-            console.error("Quote data not found for id:", id);
-            alert("Error: Could not clone quote.");
+            if (msg && msg.quoteData) {
+                setQuoteInitialCart(msg.quoteData.cart || []);
+                setQuoteReadOnly(false);
+                setIsQuoteModalOpen(true);
+            } else {
+                console.error("Quote data not found for id:", id);
+                alert("Error: Could not clone quote.");
+            }
+        } catch (err) {
+            console.error("Error in onCloneQuote:", err);
+            alert("An error occurred while cloning the quote.");
         }
     };
 
