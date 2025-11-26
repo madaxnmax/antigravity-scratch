@@ -99,6 +99,19 @@ app.get('/nylas', async (req, res) => {
     }
 });
 
+app.get('/nylas/grants', async (req, res) => {
+    if (!nylas) {
+        return res.status(500).json({ error: 'Nylas not configured' });
+    }
+    try {
+        const grants = await nylas.grants.list();
+        res.json(grants.data);
+    } catch (error) {
+        logger.error("Nylas Grants Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/nylas/threads', async (req, res) => {
     if (!nylas) {
         logger.error('Nylas not configured request failed');

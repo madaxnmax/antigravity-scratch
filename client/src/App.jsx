@@ -506,7 +506,7 @@ const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh }) => (
     </div>
 );
 
-const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags }) => {
+const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingReply, setPendingReply, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId }) => {
     const messagesEndRef = useRef(null);
     const [tagMenuOpen, setTagMenuOpen] = useState(false);
     const [replyMode, setReplyMode] = useState('replyAll');
@@ -519,6 +519,10 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
     const [chatMessages, setChatMessages] = useState([{ id: 1, user: "Mike Ross", text: "Did we confirm specs?", time: "10:30 AM" }]);
     const [newChatMsg, setNewChatMsg] = useState("");
+
+    // Mention State
+    const [mentionQuery, setMentionQuery] = useState(null);
+    const [mentionCursorIndex, setMentionCursorIndex] = useState(null);
 
     const crmInfo = thread ? resolveCustomerFromEmail(thread.senderEmail) : null;
 
@@ -542,9 +546,50 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
     const handleSendChat = () => {
         if (!newChatMsg.trim()) return;
-        setChatMessages([...chatMessages, { id: Date.now(), user: "Me", text: newChatMsg, time: "Just now" }]);
+
+        // Determine user name from defaultGrantId
+        let userName = "Me";
+        if (defaultGrantId && grants.length > 0) {
+            const grant = grants.find(g => g.id === defaultGrantId);
+            if (grant) {
+                userName = grant.name || grant.email.split('@')[0];
+            }
+        }
+
+        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: newChatMsg, time: "Just now" }]);
         setNewChatMsg("");
     };
+
+    const handleChatInput = (e) => {
+        const val = e.target.value;
+        setNewChatMsg(val);
+
+        // Simple mention detection
+        const lastChar = val.slice(-1);
+        if (lastChar === '@') {
+            setMentionQuery('');
+            setMentionCursorIndex(val.length);
+        } else if (mentionQuery !== null) {
+            if (lastChar === ' ') {
+                setMentionQuery(null);
+            } else {
+                setMentionQuery(val.slice(mentionCursorIndex));
+            }
+        }
+    };
+
+    const insertMention = (name) => {
+        if (mentionCursorIndex === null) return;
+        const before = newChatMsg.slice(0, mentionCursorIndex);
+        const after = newChatMsg.slice(mentionCursorIndex + (mentionQuery || '').length);
+        setNewChatMsg(`${before}${name} ${after}`);
+        setMentionQuery(null);
+        setMentionCursorIndex(null);
+    };
+
+    const filteredGrants = mentionQuery !== null
+        ? grants.filter(g => (g.name || g.email).toLowerCase().includes(mentionQuery.toLowerCase()))
+        : [];
 
     return (
         <div className="flex-1 flex h-screen bg-white overflow-hidden">
@@ -693,21 +738,37 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
                         </div>
                     ) : <div className="text-sm text-gray-400 italic">No CRM data available.</div>}
                 </div>
-                <div className="h-[45%] flex flex-col bg-slate-50 border-t border-gray-200">
+                <div className="h-[45%] flex flex-col bg-slate-50 border-t border-gray-200 relative">
                     <div className="p-3 bg-white border-b border-gray-200 flex justify-between items-center">
                         <h3 className="font-bold text-blue-800 text-xs uppercase flex items-center gap-2"><Users size={14} /> Teams Chat</h3>
                         <span className="text-[10px] text-green-600 font-bold">● Online</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-3">
                         {chatMessages.map(msg => (
-                            <div key={msg.id} className={`flex flex-col ${msg.user === 'Me' ? 'items-end' : 'items-start'}`}>
+                            <div key={msg.id} className={`flex flex-col ${msg.user === 'Me' || (grants.find(g => g.name === msg.user || g.email.startsWith(msg.user))) ? 'items-end' : 'items-start'}`}>
                                 <div className="flex items-center gap-1 mb-0.5"><span className="text-[10px] font-bold text-gray-700">{msg.user}</span></div>
-                                <div className={`rounded px-2 py-1.5 text-xs max-w-[85%] ${msg.user === 'Me' ? 'bg-blue-100 text-blue-900' : 'bg-white border border-gray-200 text-gray-800'}`}>{msg.text}</div>
+                                <div className={`rounded px-2 py-1.5 text-xs max-w-[85%] ${msg.user === 'Me' || (grants.find(g => g.name === msg.user || g.email.startsWith(msg.user))) ? 'bg-blue-100 text-blue-900' : 'bg-white border border-gray-200 text-gray-800'}`}>{msg.text}</div>
                             </div>
                         ))}
                     </div>
+
+                    {/* Mention Popover */}
+                    {mentionQuery !== null && filteredGrants.length > 0 && (
+                        <div className="absolute bottom-12 left-2 right-2 bg-white border border-gray-200 shadow-lg rounded-md z-20 max-h-40 overflow-y-auto">
+                            {filteredGrants.map(g => (
+                                <button key={g.id} onClick={() => insertMention(g.name || g.email)} className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-[10px]">{g.email[0].toUpperCase()}</div>
+                                    <div>
+                                        <div className="font-bold text-gray-900">{g.name || g.email}</div>
+                                        <div className="text-[10px] text-gray-500">{g.email}</div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="p-2 bg-white border-t border-gray-200 flex gap-1">
-                        <input className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 outline-none" placeholder="Message..." value={newChatMsg} onChange={(e) => setNewChatMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendChat()} />
+                        <input className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 outline-none" placeholder="Message... (@ to mention)" value={newChatMsg} onChange={handleChatInput} onKeyDown={(e) => e.key === 'Enter' && handleSendChat()} />
                         <button onClick={handleSendChat} className="bg-blue-700 text-white p-1.5 rounded"><Send size={12} /></button>
                     </div>
                 </div>
@@ -1183,6 +1244,59 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+// --- 4. SETTINGS MODAL ---
+const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGrantId }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="bg-slate-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <Settings size={18} /> Settings
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                </div>
+                <div className="p-6">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase mb-4">Connected Accounts</h3>
+                    <div className="space-y-3 mb-6">
+                        {grants.map(grant => (
+                            <div key={grant.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                                        {grant.email[0].toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold text-gray-900">{grant.email}</div>
+                                        <div className="text-xs text-gray-500 capitalize">{grant.provider}</div>
+                                    </div>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="defaultGrant"
+                                        checked={defaultGrantId === grant.id}
+                                        onChange={() => setDefaultGrantId(grant.id)}
+                                        className="text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-xs font-medium text-gray-600">Default</span>
+                                </label>
+                            </div>
+                        ))}
+                        {grants.length === 0 && <div className="text-sm text-gray-500 italic">No accounts connected.</div>}
+                    </div>
+                    <button className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                        <Plus size={16} /> Connect Another Account
+                    </button>
+                </div>
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+                    <button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm shadow-sm">Done</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- 5. MAIN APP COMPONENT ---
 
 const MetalFlowApp = () => {
@@ -1190,12 +1304,42 @@ const MetalFlowApp = () => {
     const [activeThreadId, setActiveThreadId] = useState(null);
     const [threads, setThreads] = useState([]);
     const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Settings Modal State
     const [activeProductContext, setActiveProductContext] = useState('Sheet');
     const [quoteStep, setQuoteStep] = useState(1);
     const [pendingReply, setPendingReply] = useState("");
     const [currentMessages, setCurrentMessages] = useState([]);
     const [allTags, setAllTags] = useState(INITIAL_TAGS);
     const [userEmail, setUserEmail] = useState(null);
+    const [grants, setGrants] = useState([]);
+    const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
+
+    // Fetch grants on mount
+    useEffect(() => {
+        const fetchGrants = async () => {
+            try {
+                const res = await fetch('/nylas/grants');
+                if (res.ok) {
+                    const data = await res.json();
+                    setGrants(data);
+                    // Set default if not set
+                    if (data.length > 0 && !defaultGrantId) {
+                        setDefaultGrantId(data[0].id);
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching grants:", err);
+            }
+        };
+        fetchGrants();
+    }, []);
+
+    // Persist default grant
+    useEffect(() => {
+        if (defaultGrantId) {
+            localStorage.setItem('defaultGrantId', defaultGrantId);
+        }
+    }, [defaultGrantId]);
 
     // Logging for debugging
     useEffect(() => {
@@ -1365,7 +1509,7 @@ const MetalFlowApp = () => {
 
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} />
             <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} onRefresh={refreshThreads} />
             <ThreadView
                 thread={activeThread}
@@ -1378,6 +1522,8 @@ const MetalFlowApp = () => {
                 setMessages={setCurrentMessages}
                 allTags={allTags}
                 onUpdateTags={handleUpdateTags}
+                grants={grants} // Pass grants for mentions
+                defaultGrantId={defaultGrantId} // Pass default identity
             />
 
             {/* Quote Builder Modal */}
@@ -1388,17 +1534,11 @@ const MetalFlowApp = () => {
                         onClose={() => setIsQuoteModalOpen(false)}
                         initialStep={quoteStep}
                         productContext={activeProductContext}
-                        activeThread={activeThread}
+                        activeThread={threads.find(t => t.id === activeThreadId)}
                         onSubmitQuote={(quote) => {
-                            console.log("Submitting Quote:", quote);
+                            console.log("Quote Submitted:", quote);
                             setIsQuoteModalOpen(false);
-                            // Add system message
-                            setCurrentMessages([...currentMessages, {
-                                id: Date.now(),
-                                sender: 'system',
-                                quoteId: 'Q-9928',
-                                timestamp: 'Just now'
-                            }]);
+                            setPendingReply(`Here is the quote you requested (Quote #${quote.id} for $${quote.amount}). Let me know if you have any questions.`);
                         }}
                     />
                 </div>
