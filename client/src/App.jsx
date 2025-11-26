@@ -1667,8 +1667,16 @@ const MetalFlowApp = () => {
             const trim = 0.25;
 
             const payload = {
-                stocks: stocks.map(s => ({ length: s.length, width: s.width, count: s.count })),
-                requirements: requirements.map(r => ({ length: r.length, width: r.width, count: r.count })),
+                stocks: stocks.map(s => ({
+                    length: parseFloat(s.length),
+                    width: parseFloat(s.width),
+                    count: parseInt(s.count)
+                })),
+                requirements: requirements.map(r => ({
+                    length: parseFloat(r.length),
+                    width: parseFloat(r.width),
+                    count: parseInt(r.count)
+                })),
                 kerf: parseFloat(kerf) || 0
             };
 
