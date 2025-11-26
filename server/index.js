@@ -468,7 +468,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 });
 
 app.get('/version', (req, res) => {
-    res.send('v2 - Refined Inbox UI');
+    res.send('v3 - Supabase Admin');
 });
 
 app.get('/', (req, res) => {
