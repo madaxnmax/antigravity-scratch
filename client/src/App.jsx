@@ -1024,13 +1024,21 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 // --- QUOTE BUILDER & MAIN APP ---
 
 const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, activeThread, onSubmitQuote, initialCart = [], readOnly = false }) => {
-    console.log("QuoteBuilder Render:", { isOpen, initialCart, readOnly, step: initialStep });
+    console.log("QuoteBuilder Render:", {
+        isOpen,
+        initialCartLength: initialCart ? initialCart.length : 'null',
+        readOnly,
+        step: initialStep,
+        initialCart
+    });
+
     const [step, setStep] = useState(initialStep);
     const [activeType, setActiveType] = useState('Sheet');
     const [cart, setCart] = useState(initialCart || []);
     const [selectedItemId, setSelectedItemId] = useState(null);
 
     useEffect(() => {
+        console.log("QuoteBuilder: readOnly changed to:", readOnly);
         if (readOnly) {
             setStep(2);
         }
@@ -1038,7 +1046,8 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
 
     // Reset cart if initialCart changes (for cloning/viewing)
     useEffect(() => {
-        setCart(initialCart);
+        console.log("QuoteBuilder: initialCart changed:", initialCart);
+        setCart(initialCart || []);
     }, [initialCart]);
     const [customerName, setCustomerName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
