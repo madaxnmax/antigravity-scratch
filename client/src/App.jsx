@@ -571,6 +571,23 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
         setMentionCursorIndex(null);
     };
 
+    // Teams Chat Send Logic (Restored)
+    const handleSendChat = () => {
+        if (!newChatMsg.trim()) return;
+
+        // Determine user name from defaultGrantId
+        let userName = "Me";
+        if (defaultGrantId && grants.length > 0) {
+            const grant = grants.find(g => g.id === defaultGrantId);
+            if (grant) {
+                userName = grant.name || grant.email.split('@')[0];
+            }
+        }
+
+        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: newChatMsg, time: "Just now" }]);
+        setNewChatMsg("");
+    };
+
     // Send Email Logic
     const handleSendReply = async () => {
         if (!pendingReply.trim()) return;
