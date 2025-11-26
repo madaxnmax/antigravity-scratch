@@ -1546,24 +1546,25 @@ const MetalFlowApp = () => {
         }
     };
 
-    const handleSync = async () => {
+    const handleSync = async (silent = false) => {
         try {
             const res = await fetch('/api/sync', { method: 'POST' });
             if (res.ok) {
-                alert("Sync started. Refreshing...");
+                if (!silent) alert("Sync started. Refreshing...");
                 setTimeout(refreshThreads, 2000); // Wait for sync
             } else {
-                alert("Sync failed to start.");
+                if (!silent) alert("Sync failed to start.");
             }
         } catch (err) {
             console.error("Sync error:", err);
-            alert("Sync error.");
+            if (!silent) alert("Sync error.");
         }
     };
 
     useEffect(() => {
         refreshThreads();
-        const interval = setInterval(refreshThreads, 15000); // Auto-refresh every 15s
+        // Auto-sync every 15s (silent)
+        const interval = setInterval(() => handleSync(true), 15000);
         return () => clearInterval(interval);
     }, []);
 
