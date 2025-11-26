@@ -11,7 +11,7 @@ import {
     MessageSquare, FileSignature, Bot, Shield, Calendar,
     Reply, ReplyAll, AlarmClock, CircleDashed, ExternalLink,
     UserPlus, Image as ImageIcon, Quote, FileText, Upload,
-    AtSign, Maximize2, Smile as SmileIcon
+    AtSign, Maximize2
 } from 'lucide-react';
 import OptimizationResult from './OptimizationResult';
 
