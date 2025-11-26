@@ -1140,109 +1140,261 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                     )}
                 </div>
             </div>
-        </div >
-    );
-};
-
-const MetalFlowApp = () => {
-    const [activeChannel, setActiveChannel] = useState('Inbox');
-    const [activeThreadId, setActiveThreadId] = useState(8);
-    const [threads, setThreads] = useState(MOCK_THREADS);
-    const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
-    const [activeProductContext, setActiveProductContext] = useState(null);
-    const [quoteStep, setQuoteStep] = useState(1);
-    const [pendingReply, setPendingReply] = useState("");
-    const [currentMessages, setCurrentMessages] = useState(MOCK_THREADS[0].messages);
-
-    const [userEmail, setUserEmail] = useState("");
-
-    useEffect(() => {
-        const fetchThreads = async () => {
-            try {
-                const res = await fetch('/nylas');
-                const data = await res.json();
-                if (data.user) setUserEmail(data.user);
-
-                if (data.threads && data.threads.length > 0) {
-                    const mappedThreads = data.threads.map(t => {
-                        const sender = t.participants.find(p => p.email !== data.user) || t.participants[0];
-                        return {
-                            id: t.id,
-                            subject: t.subject,
-                            customer: resolveCustomerFromEmail(sender?.email)?.name || "Unknown Customer",
-                            customerInitials: (sender?.name || "??").substring(0, 2).toUpperCase(),
-                            timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                            status: "Open",
-                            channel: "Inbox",
-                            assignee: "Unassigned",
-                            tags: t.unread ? ["Unread"] : [],
-                            senderEmail: sender?.email,
-                            to: t.participants.map(p => p.email),
-                            cc: [],
-                            messages: [], // Will be fetched separately
-                            productContext: "General"
-                        };
-                    });
-                    setThreads(mappedThreads);
-                    if (mappedThreads.length > 0) {
-                        setActiveThreadId(mappedThreads[0].id);
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to fetch Nylas threads", err);
-            }
-        };
-        fetchThreads();
-    }, []);
-
-    useEffect(() => {
-        const fetchMessages = async () => {
-            if (!activeThreadId) return;
-            try {
-                const res = await fetch(`/nylas/thread/${activeThreadId}`);
-                const data = await res.json();
-                if (data.messages) {
-                    // Sort messages by date
-                    const sorted = data.messages.sort((a, b) => a.date - b.date);
-                    const mappedMessages = sorted.map(m => ({
-                        id: m.id,
-                        sender: m.from[0].email === userEmail ? 'user' : 'customer',
-                        name: m.from[0].name || m.from[0].email,
-                        text: m.body,
-                        timestamp: m.date ? new Date(m.date * 1000).toLocaleString() : ''
-                    }));
-                    setCurrentMessages(mappedMessages);
-                }
-            } catch (err) {
-                console.error("Failed to fetch messages", err);
-            }
-        };
-        fetchMessages();
-    }, [activeThreadId, userEmail]);
-
-    return (
-        <div className="flex h-screen w-full font-sans bg-slate-50 overflow-hidden text-slate-900">
-            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
-            <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
-            <ThreadView
-                thread={threads.find(t => t.id === activeThreadId)}
-                onOpenQuote={() => { setIsQuoteModalOpen(true) }}
-                onViewQuote={() => { }}
-                onCloneQuote={() => { }}
-                pendingReply={pendingReply}
-                setPendingReply={setPendingReply}
-                messages={currentMessages}
-                setMessages={setCurrentMessages}
-                allTags={INITIAL_TAGS}
-                onUpdateTags={() => { }}
-            />
-            <QuoteBuilder isOpen={isQuoteModalOpen} onClose={() => setIsQuoteModalOpen(false)} />
         </div>
     );
 };
 
-export default MetalFlowApp;
+// --- 0. ERROR BOUNDARY ---
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("Uncaught Error:", error, errorInfo);
+        this.setState({ error, errorInfo });
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-8 bg-red-50 text-red-900 h-screen flex flex-col items-center justify-center">
+                    <h1 className="text-2xl font-bold mb-4">Something went wrong.</h1>
+                    <p className="mb-4">Please check the console for more details.</p>
+                    <pre className="bg-white p-4 rounded border border-red-200 text-xs overflow-auto max-w-2xl">
+                        {this.state.error && this.state.error.toString()}
+                        <br />
+                        {this.state.errorInfo && this.state.errorInfo.componentStack}
+                    </pre>
+                    <button onClick={() => window.location.reload()} className="mt-6 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                        Reload Page
+                    </button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
+// --- 5. MAIN APP COMPONENT ---
+
+const MetalFlowApp = () => {
+    const [activeChannel, setActiveChannel] = useState('Inbox');
+    const [activeThreadId, setActiveThreadId] = useState(null);
+    const [threads, setThreads] = useState([]);
+    const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+    const [activeProductContext, setActiveProductContext] = useState('Sheet');
+    const [quoteStep, setQuoteStep] = useState(1);
+    const [pendingReply, setPendingReply] = useState("");
+    const [currentMessages, setCurrentMessages] = useState([]);
+    const [allTags, setAllTags] = useState(INITIAL_TAGS);
+    const [userEmail, setUserEmail] = useState(null);
+
+    // Logging for debugging
+    useEffect(() => {
+        console.log("MetalFlowApp Mounted");
+    }, []);
+
+    useEffect(() => {
+        console.log("State Update - Active Thread:", activeThreadId);
+    }, [activeThreadId]);
+
+    useEffect(() => {
+        console.log("State Update - Quote Modal Open:", isQuoteModalOpen);
+    }, [isQuoteModalOpen]);
+
+    // Fetch threads from Nylas
+    useEffect(() => {
+        const fetchThreads = async () => {
+            try {
+                console.log("Fetching threads...");
+                const res = await fetch('/nylas/threads?limit=5');
+                if (!res.ok) throw new Error('Failed to fetch threads');
+                const data = await res.json();
+                console.log("Threads fetched:", data);
+
+                // Set user email from the first thread if available (simplified logic)
+                if (data.length > 0 && data[0].participants) {
+                    const me = data[0].participants.find(p => p.email === 'max@atlasfibre.com') || data[0].participants[0];
+                    setUserEmail(me.email);
+                }
+
+                const mappedThreads = data.map(t => ({
+                    id: t.id,
+                    subject: t.subject,
+                    customer: "Unknown Customer", // Placeholder
+                    customerInitials: "??",
+                    timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                    status: "Open",
+                    channel: "Inbox",
+                    assignee: "Me",
+                    tags: [],
+                    senderEmail: t.participants?.[0]?.email || "unknown",
+                    to: t.participants?.map(p => p.email) || [],
+                    cc: [],
+                    messages: [{
+                        id: t.latest_message_id,
+                        sender: "customer",
+                        name: t.participants?.[0]?.name || "Unknown",
+                        text: t.snippet,
+                        timestamp: t.last_message_timestamp ? new Date(t.last_message_timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+                    }],
+                    productContext: "Sheet" // Default
+                }));
+                setThreads(mappedThreads);
+                if (mappedThreads.length > 0) {
+                    setActiveThreadId(mappedThreads[0].id);
+                }
+            } catch (err) {
+                console.error("Error fetching threads:", err);
+                // Fallback to mock data if API fails
+                setThreads(MOCK_THREADS);
+                if (MOCK_THREADS.length > 0) {
+                    setActiveThreadId(MOCK_THREADS[0].id);
+                }
+            }
+        };
+
+        fetchThreads();
+    }, []);
+
+    // Fetch messages for active thread
+    useEffect(() => {
+        const fetchMessages = async () => {
+            if (!activeThreadId) return;
+
+            // Check if it's a mock thread
+            const mockThread = MOCK_THREADS.find(t => t.id === activeThreadId);
+            if (mockThread) {
+                setCurrentMessages(mockThread.messages);
+                return;
+            }
+
+            try {
+                console.log(`Fetching messages for thread ${activeThreadId}...`);
+                const res = await fetch(`/nylas/thread/${activeThreadId}`);
+                if (!res.ok) throw new Error('Failed to fetch messages');
+                const data = await res.json();
+                console.log("Messages fetched:", data);
+
+                const mappedMessages = data.map(m => ({
+                    id: m.id,
+                    sender: m.from?.[0]?.email === userEmail ? 'user' : 'customer',
+                    name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
+                    text: m.body, // Use full HTML body
+                    timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                    quoteId: null // Add logic if needed
+                }));
+                setCurrentMessages(mappedMessages);
+            } catch (err) {
+                console.error("Error fetching messages:", err);
+                setCurrentMessages([]);
+            }
+        };
+
+        fetchMessages();
+    }, [activeThreadId, userEmail]);
 
 
+    const activeThread = threads.find(t => t.id === activeThreadId) || threads[0];
 
+    const handleOpenQuote = (context) => {
+        console.log("Opening Quote Modal with context:", context);
+        setActiveProductContext(context || 'Sheet');
+        setIsQuoteModalOpen(true);
+    };
 
+    const handleViewQuote = (id) => {
+        console.log("Viewing Quote:", id);
+        alert(`View Quote ${id} (Placeholder)`);
+    };
+
+    const handleCloneQuote = (id) => {
+        console.log("Cloning Quote:", id);
+        alert(`Clone Quote ${id} (Placeholder)`);
+    };
+
+    const handleUpdateTags = (newTags) => {
+        const updatedThreads = threads.map(t =>
+            t.id === activeThreadId ? { ...t, tags: newTags } : t
+        );
+        setThreads(updatedThreads);
+    };
+
+    // OptiCutter Integration
+    const [optimizationData, setOptimizationData] = useState(null);
+
+    const handleOptimize = async (items) => {
+        try {
+            console.log("Optimizing items:", items);
+            const res = await fetch('/opticutter/optimize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items }) // Simplified payload
+            });
+            const data = await res.json();
+            console.log("Optimization result:", data);
+            setOptimizationData(data);
+        } catch (err) {
+            console.error("Optimization failed:", err);
+            alert("Optimization failed. Check console.");
+        }
+    };
+
+    return (
+        <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
+            <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => { }} />
+            <ThreadList threads={threads} activeThreadId={activeThreadId} onSelectThread={setActiveThreadId} />
+            <ThreadView
+                thread={activeThread}
+                onOpenQuote={handleOpenQuote}
+                onViewQuote={handleViewQuote}
+                onCloneQuote={handleCloneQuote}
+                pendingReply={pendingReply}
+                setPendingReply={setPendingReply}
+                messages={currentMessages}
+                setMessages={setCurrentMessages}
+                allTags={allTags}
+                onUpdateTags={handleUpdateTags}
+            />
+
+            {/* Quote Builder Modal */}
+            {isQuoteModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <QuoteBuilder
+                        isOpen={isQuoteModalOpen}
+                        onClose={() => setIsQuoteModalOpen(false)}
+                        initialStep={quoteStep}
+                        productContext={activeProductContext}
+                        activeThread={activeThread}
+                        onSubmitQuote={(quote) => {
+                            console.log("Submitting Quote:", quote);
+                            setIsQuoteModalOpen(false);
+                            // Add system message
+                            setCurrentMessages([...currentMessages, {
+                                id: Date.now(),
+                                sender: 'system',
+                                quoteId: 'Q-9928',
+                                timestamp: 'Just now'
+                            }]);
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default function App() {
+    return (
+        <ErrorBoundary>
+            <MetalFlowApp />
+        </ErrorBoundary>
+    );
+}
