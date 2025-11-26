@@ -1749,6 +1749,36 @@ const MetalFlowApp = () => {
         setActiveChannel('Inbox');
     };
 
+    const handleMarkAsNew = async (threadId, isNew) => {
+        try {
+            // Optimistic update
+            setThreads(prev => prev.map(t => t.id === threadId ? { ...t, is_new: isNew } : t));
+
+            // If marking as read (isNew=false), decrement count immediately for responsiveness
+            if (!isNew) {
+                setNewCount(prev => Math.max(0, prev - 1));
+            } else {
+                setNewCount(prev => prev + 1);
+            }
+
+            const res = await fetch(`/api/threads/${threadId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_new: isNew })
+            });
+
+            if (!res.ok) {
+                // Revert if failed (simplified, usually we'd re-fetch)
+                refreshThreads();
+            } else {
+                fetchNewCount(); // Ensure accurate count
+            }
+        } catch (err) {
+            console.error("Mark as new error:", err);
+            refreshThreads();
+        }
+    };
+
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
             <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={() => setIsComposeOpen(true)} newCount={newCount} />
