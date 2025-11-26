@@ -300,54 +300,40 @@ app.get('/opticutter', (req, res) => {
 
 app.post('/opticutter/optimize', async (req, res) => {
     const opticutterKey = process.env.OPTICUTTER_API_KEY;
-    return res.status(500).json({ error: 'OptiCutter API key not configured' });
-}
+    if (!opticutterKey) {
+        return res.status(500).json({ error: 'OptiCutter API key not configured' });
+    }
 
     try {
-    logger.info("Received OptiCutter optimization request", { payload: req.body });
-    console.log("Proxying to OptiCutter...");
-    console.log("Incoming Payload Body:", JSON.stringify(req.body, null, 2));
+        logger.info("Received OptiCutter optimization request", { payload: req.body });
+        console.log("Proxying to OptiCutter...");
+        console.log("Incoming Payload Body:", JSON.stringify(req.body, null, 2));
 
-    const response = await fetch('https://api.opticutter.com/v1/panel', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${opticutterKey}`
-        },
-        body: JSON.stringify(req.body)
-    if(!opticutterKey) {
-            return res.status(500).json({ error: 'OptiCutter API key not configured' });
+        const response = await fetch('https://api.opticutter.com/v1/panel', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${opticutterKey}`
+            },
+            body: JSON.stringify(req.body)
+        });
+
+        const data = await response.json();
+        console.log("OptiCutter Response Status:", response.status);
+
+        if (!response.ok) {
+            console.error("OptiCutter Error Response:", JSON.stringify(data, null, 2));
+            logger.error('OptiCutter API error', { status: response.status, data });
+            return res.status(response.status).json(data);
         }
 
-    try {
-            logger.info("Received OptiCutter optimization request", { payload: req.body });
-            console.log("Proxying to OptiCutter...");
-            console.log("Incoming Payload Body:", JSON.stringify(req.body, null, 2));
-
-            const response = await fetch('https://api.opticutter.com/v1/panel', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${opticutterKey}`
-                },
-                body: JSON.stringify(req.body)
-            });
-
-            const data = await response.json();
-            console.log("OptiCutter Response Status:", response.status);
-
-            if(!response.ok) {
-                console.error("OptiCutter Error Response:", JSON.stringify(data, null, 2));
-    logger.error('OptiCutter API error', { status: response.status, data });
-    return res.status(response.status).json(data);
-}
-
         logger.info("OptiCutter optimization successful", { result: data });
-res.json(data);
+        res.json(data);
     } catch (error) {
-    logger.error("OptiCutter Error:", error);
-    res.status(500).json({ error: error.message });
-}
+        logger.error("OptiCutter Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 });
 
 // Serve static files from the React client
