@@ -602,6 +602,52 @@ app.post('/api/teammates', async (req, res) => {
     }
 });
 
+// --- QUOTES ---
+app.post('/api/quotes', async (req, res) => {
+    try {
+        const { threadId, cart, total, customer } = req.body;
+
+        if (!threadId || !cart) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const quoteId = `quote_${Date.now()}`;
+        const quoteData = {
+            id: quoteId,
+            cart,
+            total,
+            customer,
+            createdAt: new Date().toISOString()
+        };
+
+        // Store as a special message
+        const message = {
+            id: crypto.randomUUID(),
+            thread_id: threadId,
+            subject: `Quote #${quoteId} Generated`,
+            body: `[QUOTE_DATA]${JSON.stringify(quoteData)}[/QUOTE_DATA]`,
+            from: [{ name: 'System', email: 'system@metalflow.app' }],
+            to: [],
+            cc: [],
+            date: Math.floor(Date.now() / 1000)
+        };
+
+        await dbService.upsertMessage(message);
+
+        // Update thread timestamp so it bumps to top
+        await dbService.upsertThread({
+            id: threadId,
+            last_message_timestamp: message.date,
+            snippet: `Quote #${quoteId} Generated`
+        });
+
+        res.json({ success: true, quoteId });
+    } catch (error) {
+        logger.error("Failed to save quote:", error);
+        res.status(500).json({ error: 'Failed to save quote' });
+    }
+});
+
 // --- Tags API ---
 app.get('/api/tags', async (req, res) => {
     try {

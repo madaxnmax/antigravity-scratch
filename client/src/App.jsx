@@ -1023,11 +1023,22 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, pendingRep
 
 // --- QUOTE BUILDER & MAIN APP ---
 
-const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, activeThread, onSubmitQuote }) => {
+const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, activeThread, onSubmitQuote, initialCart = [], readOnly = false }) => {
     const [step, setStep] = useState(initialStep);
     const [activeType, setActiveType] = useState('Sheet');
-    const [cart, setCart] = useState([]);
+    const [cart, setCart] = useState(initialCart);
     const [selectedItemId, setSelectedItemId] = useState(null);
+
+    useEffect(() => {
+        if (readOnly) {
+            setStep(2);
+        }
+    }, [readOnly]);
+
+    // Reset cart if initialCart changes (for cloning/viewing)
+    useEffect(() => {
+        setCart(initialCart);
+    }, [initialCart]);
     const [customerName, setCustomerName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [contactName, setContactName] = useState("");
@@ -1496,7 +1507,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                     })}
                                 </div>
                                 <div className="p-4 border-t border-gray-200 flex-shrink-0">
-                                    <button onClick={() => setStep(1)} className="flex items-center justify-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 w-full py-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200"><ChevronLeft size={16} /> Back to Cart</button>
+                                    {!readOnly && <button onClick={() => setStep(1)} className="flex items-center justify-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 w-full py-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200"><ChevronLeft size={16} /> Back to Cart</button>}
                                 </div>
                             </div>
 
@@ -1541,7 +1552,7 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
                                             </div>
                                         </div>
                                         <div className="flex-shrink-0">
-                                            <button onClick={() => onSubmitQuote({ id: 1024, amount: 810 })} className="w-full bg-blue-700 hover:bg-blue-600 text-white py-3 rounded-lg font-bold shadow-lg uppercase tracking-wide flex justify-center items-center gap-2 text-sm">Finalize Quote <CheckCircle size={18} /></button>
+                                            {!readOnly && <button onClick={() => onSubmitQuote({ cart, total: 810 })} className="w-full bg-blue-700 hover:bg-blue-600 text-white py-3 rounded-lg font-bold shadow-lg uppercase tracking-wide flex justify-center items-center gap-2 text-sm">Finalize Quote <CheckCircle size={18} /></button>}
                                         </div>
                                     </div>
                                 </div>
@@ -1862,6 +1873,9 @@ const MetalFlowApp = () => {
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
     const [newCount, setNewCount] = useState(0);
+    const [quoteReadOnly, setQuoteReadOnly] = useState(false);
+    const [quoteInitialCart, setQuoteInitialCart] = useState([]);
+    const [messageRefreshTrigger, setMessageRefreshTrigger] = useState(0);
 
 
     // Fetch grants on mount
@@ -2034,18 +2048,38 @@ const MetalFlowApp = () => {
                 const data = await res.json();
 
                 // Map DB messages to UI format
-                const mappedMessages = data.map(m => ({
-                    id: m.id,
-                    sender: m.from?.[0]?.email === 'me' ? 'user' : 'customer', // Simplified check
-                    name: m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown',
-                    text: m.body,
-                    timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    rawDate: m.date,
-                    subject: m.subject,
-                    from: m.from,
-                    to: m.to,
-                    cc: m.cc
-                }));
+                const mappedMessages = data.map(m => {
+                    let isSystem = false;
+                    let quoteId = null;
+                    let quoteDataObj = null;
+                    let text = m.body;
+
+                    if (m.body && m.body.startsWith('[QUOTE_DATA]')) {
+                        isSystem = true;
+                        try {
+                            const jsonStr = m.body.replace('[QUOTE_DATA]', '').replace('[/QUOTE_DATA]', '');
+                            quoteDataObj = JSON.parse(jsonStr);
+                            quoteId = quoteDataObj.id;
+                        } catch (e) {
+                            console.error("Failed to parse quote data", e);
+                        }
+                    }
+
+                    return {
+                        id: m.id,
+                        sender: isSystem ? 'system' : (m.from?.[0]?.email === 'me' ? 'user' : 'customer'),
+                        name: isSystem ? 'System' : (m.from?.[0]?.name || m.from?.[0]?.email || 'Unknown'),
+                        text: text,
+                        quoteId: quoteId,
+                        quoteData: quoteDataObj,
+                        timestamp: m.date ? new Date(m.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                        rawDate: m.date,
+                        subject: m.subject,
+                        from: m.from,
+                        to: m.to,
+                        cc: m.cc
+                    };
+                });
 
                 setCurrentMessages(mappedMessages);
             } catch (err) {
@@ -2055,7 +2089,8 @@ const MetalFlowApp = () => {
         };
 
         fetchMessages();
-    }, [activeThreadId, threads]);
+        fetchMessages();
+    }, [activeThreadId, threads, messageRefreshTrigger]);
 
 
     const activeThread = activeThreadId === 'new'
@@ -2065,17 +2100,48 @@ const MetalFlowApp = () => {
     const handleOpenQuote = (context) => {
         console.log("Opening Quote Modal with context:", context);
         setActiveProductContext(context || 'Sheet');
+        setQuoteReadOnly(false);
+        setQuoteInitialCart([]);
         setIsQuoteModalOpen(true);
     };
 
-    const handleViewQuote = (id) => {
-        console.log("Viewing Quote:", id);
-        alert(`View Quote ${id} (Placeholder)`);
+    const handleSaveQuote = async (quoteData) => {
+        try {
+            const res = await fetch('/api/quotes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    threadId: activeThreadId,
+                    cart: quoteData.cart,
+                    total: quoteData.total,
+                    customer: customerName // Note: customerName might be empty here if not synced
+                })
+            });
+            if (res.ok) {
+                setIsQuoteModalOpen(false);
+                setMessageRefreshTrigger(prev => prev + 1);
+            }
+        } catch (err) {
+            console.error("Failed to save quote", err);
+        }
     };
 
-    const handleCloneQuote = (id) => {
-        console.log("Cloning Quote:", id);
-        alert(`Clone Quote ${id} (Placeholder)`);
+    const onViewQuote = (id) => {
+        const msg = currentMessages.find(m => m.quoteId === id);
+        if (msg && msg.quoteData) {
+            setQuoteInitialCart(msg.quoteData.cart);
+            setQuoteReadOnly(true);
+            setIsQuoteModalOpen(true);
+        }
+    };
+
+    const onCloneQuote = (id) => {
+        const msg = currentMessages.find(m => m.quoteId === id);
+        if (msg && msg.quoteData) {
+            setQuoteInitialCart(msg.quoteData.cart);
+            setQuoteReadOnly(false);
+            setIsQuoteModalOpen(true);
+        }
     };
 
     const handleUpdateTags = (newTags) => {
@@ -2239,11 +2305,9 @@ const MetalFlowApp = () => {
                 onClose={() => setIsQuoteModalOpen(false)}
                 productContext={activeProductContext}
                 activeThread={activeThread}
-                onSubmitQuote={(quote) => {
-                    console.log("Quote Submitted:", quote);
-                    setIsQuoteModalOpen(false);
-                    // Optionally refresh threads or add a message
-                }}
+                onSubmitQuote={handleSaveQuote}
+                initialCart={quoteInitialCart}
+                readOnly={quoteReadOnly}
             />
 
             {isSettingsOpen && (
