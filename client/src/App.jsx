@@ -396,6 +396,20 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
     const handleDrop = (e, targetChannel) => {
         e.preventDefault();
         setDragOverChannel(null);
+
+        try {
+            const data = e.dataTransfer.getData("application/json");
+            if (data) {
+                const threadIds = JSON.parse(data);
+                if (Array.isArray(threadIds) && onMoveThread) {
+                    threadIds.forEach(id => onMoveThread(id, targetChannel));
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to parse drop data", err);
+        }
+
         const threadId = e.dataTransfer.getData("text/plain");
         if (threadId && onMoveThread) {
             onMoveThread(threadId, targetChannel);
@@ -548,7 +562,7 @@ const Sidebar = ({ activeChannel, setActiveChannel, onOpenSettings, onCompose, n
     );
 };
 
-const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync, onArchive }) => (
+const ThreadList = ({ threads, activeThreadId, selectedThreadIds, onSelectThread, onRefresh, onSync, onArchive }) => (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center mb-3">
@@ -566,36 +580,50 @@ const ThreadList = ({ threads, activeThreadId, onSelectThread, onRefresh, onSync
             </div>
         </div>
         <div className="overflow-y-auto flex-1">
-            {threads.map(thread => (
-                <div
-                    key={thread.id}
-                    draggable="true"
-                    onDragStart={(e) => e.dataTransfer.setData("text/plain", thread.id)}
-                    className={`p-4 border-b border-gray-100 cursor-pointer transition-colors group relative ${activeThreadId === thread.id ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : 'hover:bg-gray-50 border-l-4 border-l-transparent'}`}
-                >
-                    <div onClick={() => onSelectThread(thread.id)}>
-                        <div className="flex justify-between items-baseline mb-0.5">
-                            <div className="flex items-center">
-                                {thread.is_new && <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 flex-shrink-0" title="New Message"></div>}
-                                <span className={`font-bold text-sm ${activeThreadId === thread.id ? 'text-gray-900' : 'text-gray-900'}`}>{thread.messages[0]?.name}</span>
-                            </div>
-                            <span className="text-[10px] text-gray-400 font-medium uppercase whitespace-nowrap ml-2">
-                                {thread.fullDate ? new Date(thread.fullDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : thread.timestamp}
-                            </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mb-1.5 truncate font-medium">{thread.customer}</div>
-                        <div className={`font-medium text-sm truncate mb-1 ${activeThreadId === thread.id ? 'text-black' : 'text-gray-700'}`}>{thread.subject}</div>
-                    </div>
-                    {/* Archive Action on Hover */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onArchive(thread.id); }}
-                        className="absolute right-2 bottom-2 p-1.5 bg-white border border-gray-200 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 text-gray-500"
-                        title="Archive"
+            {threads.map(thread => {
+                const isSelected = selectedThreadIds?.has(thread.id);
+                const isActive = activeThreadId === thread.id;
+                return (
+                    <div
+                        key={thread.id}
+                        draggable="true"
+                        onDragStart={(e) => {
+                            const ids = selectedThreadIds?.has(thread.id)
+                                ? Array.from(selectedThreadIds)
+                                : [thread.id];
+                            e.dataTransfer.setData("application/json", JSON.stringify(ids));
+                            e.dataTransfer.setData("text/plain", thread.id);
+                        }}
+                        onClick={(e) => onSelectThread(thread.id, e)}
+                        className={`p-4 border-b border-gray-100 cursor-pointer transition-colors group relative ${isSelected ? 'bg-blue-100 border-l-4 border-l-blue-600' :
+                            isActive ? 'bg-blue-50/50 border-l-4 border-l-blue-600' :
+                                'hover:bg-gray-50 border-l-4 border-l-transparent'
+                            }`}
                     >
-                        <Archive size={14} />
-                    </button>
-                </div>
-            ))}
+                        <div>
+                            <div className="flex justify-between items-baseline mb-0.5">
+                                <div className="flex items-center">
+                                    {thread.is_new && <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 flex-shrink-0" title="New Message"></div>}
+                                    <span className={`font-bold text-sm ${isActive || isSelected ? 'text-gray-900' : 'text-gray-900'}`}>{thread.messages[0]?.name}</span>
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase whitespace-nowrap ml-2">
+                                    {thread.fullDate ? new Date(thread.fullDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : thread.timestamp}
+                                </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mb-1.5 truncate font-medium">{thread.customer}</div>
+                            <div className={`font-medium text-sm truncate mb-1 ${isActive || isSelected ? 'text-black' : 'text-gray-700'}`}>{thread.subject}</div>
+                        </div>
+                        {/* Archive Action on Hover */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onArchive(thread.id); }}
+                            className="absolute right-2 bottom-2 p-1.5 bg-white border border-gray-200 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 text-gray-500"
+                            title="Archive"
+                        >
+                            <Archive size={14} />
+                        </button>
+                    </div>
+                );
+            })}
         </div>
     </div>
 );
@@ -1608,6 +1636,8 @@ const SettingsModal = ({ isOpen, onClose, grants, defaultGrantId, setDefaultGran
 const MetalFlowApp = () => {
     const [activeChannel, setActiveChannel] = useState('Inbox');
     const [activeThreadId, setActiveThreadId] = useState(null);
+    const [selectedThreadIds, setSelectedThreadIds] = useState(new Set());
+    const [lastSelectedThreadId, setLastSelectedThreadId] = useState(null);
     const [threads, setThreads] = useState([]);
     const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Settings Modal State
@@ -1870,6 +1900,35 @@ const MetalFlowApp = () => {
         }
     };
 
+    const handleThreadClick = (threadId, e) => {
+        if (e.shiftKey && lastSelectedThreadId) {
+            const currentIndex = threads.findIndex(t => t.id === threadId);
+            const lastIndex = threads.findIndex(t => t.id === lastSelectedThreadId);
+            if (currentIndex !== -1 && lastIndex !== -1) {
+                const start = Math.min(currentIndex, lastIndex);
+                const end = Math.max(currentIndex, lastIndex);
+                const newSelection = new Set(selectedThreadIds);
+                for (let i = start; i <= end; i++) {
+                    newSelection.add(threads[i].id);
+                }
+                setSelectedThreadIds(newSelection);
+            }
+        } else if (e.metaKey || e.ctrlKey) {
+            const newSelection = new Set(selectedThreadIds);
+            if (newSelection.has(threadId)) {
+                newSelection.delete(threadId);
+            } else {
+                newSelection.add(threadId);
+            }
+            setSelectedThreadIds(newSelection);
+            setLastSelectedThreadId(threadId);
+        } else {
+            setSelectedThreadIds(new Set([threadId]));
+            setLastSelectedThreadId(threadId);
+            setActiveThreadId(threadId);
+        }
+    };
+
     const handleMarkAsNew = async (threadId, isNew) => {
         try {
             // Optimistic update
@@ -1908,7 +1967,8 @@ const MetalFlowApp = () => {
             <ThreadList
                 threads={threads}
                 activeThreadId={activeThreadId}
-                onSelectThread={setActiveThreadId}
+                selectedThreadIds={selectedThreadIds}
+                onSelectThread={handleThreadClick}
                 onRefresh={refreshThreads}
                 onSync={() => handleSync(false)}
                 onArchive={handleArchive}
