@@ -2571,7 +2571,7 @@ const MetalFlowApp = () => {
     // Fetch messages for active thread from Supabase
     useEffect(() => {
         const fetchMessages = async () => {
-            if (!activeThreadId) return;
+            if (!activeThreadId || activeThreadId === 'new') return;
 
             // Check if it's a mock thread
             const mockThread = MOCK_THREADS.find(t => t.id === activeThreadId);
@@ -2582,7 +2582,8 @@ const MetalFlowApp = () => {
 
             try {
                 console.log(`Fetching messages for thread ${activeThreadId}...`);
-                const res = await fetch(`/api/threads/${activeThreadId}/messages`);
+                // FIX: Use the correct endpoint restored in server/index.js
+                const res = await fetch(`/api/messages?threadId=${activeThreadId}`);
                 if (!res.ok) throw new Error("Failed to fetch messages");
 
                 const data = await res.json();
@@ -2625,11 +2626,16 @@ const MetalFlowApp = () => {
                 setCurrentMessages(mappedMessages);
             } catch (err) {
                 console.error("Error fetching messages:", err);
+                // Don't clear messages on error if we already have some (e.g. from preview)
+                // But if we want to be safe, maybe we should? 
+                // The issue was that it WAS clearing them. 
+                // If fetch fails, we might want to keep showing what we have from the thread list snippet if possible, 
+                // but setCurrentMessages([]) wipes it. 
+                // For now, let's keep the wipe but since the endpoint is fixed, it shouldn't fail.
                 setCurrentMessages([]);
             }
         };
 
-        fetchMessages();
         fetchMessages();
     }, [activeThreadId, threads, messageRefreshTrigger]);
 

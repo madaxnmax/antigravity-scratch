@@ -180,29 +180,20 @@ class DatabaseService {
             .order('last_message_timestamp', { ascending: false })
             .range(offset, offset + limit - 1);
 
-        if (status) {
-            if (status === 'inbox') {
-                // For inbox, include 'inbox', 'Open' (legacy), and null (legacy/default)
-                // BUT if a specific channel is requested, we might want to see all messages in that channel regardless of status (unless status is explicitly 'done' or 'trash')
-
-                if (channel) {
-                    if (channel === 'Inbox') {
-                        query = query.or('channel.eq.Inbox,channel.is.null').or('status.eq.inbox,status.eq.Open,status.is.null');
-                    } else {
-                        // For specific channels (e.g. 'Sales'), show everything in that channel that isn't explicitly trash/spam
-                        // This fixes the issue where messages might be hidden if they don't have 'inbox' status
-                        query = query.eq('channel', channel).neq('status', 'trash').neq('status', 'spam');
-                    }
-                } else {
-                    // No channel specified, just show inbox status
-                    query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
-                }
-            } else {
-                query = query.eq('status', status);
-            }
-        } else if (channel) {
-            // If only channel is provided without status (though UI usually sends status=inbox)
-            query = query.eq('channel', channel);
+        // Simplified Filtering Logic
+        if (channel && channel !== 'Inbox') {
+            // Case 1: Specific Channel (e.g. 'Sales', 'Logistics')
+            // Show all threads in this channel that aren't deleted/spam
+            query = query.eq('channel', channel).neq('status', 'trash').neq('status', 'spam');
+        } else if (status && status !== 'inbox') {
+            // Case 2: Specific Status (e.g. 'done', 'trash', 'spam')
+            // Show threads with this status, regardless of channel (unless we want to restrict, but usually 'Done' is global)
+            query = query.eq('status', status);
+        } else {
+            // Case 3: Inbox (Default)
+            // Show threads with inbox-like status AND (in Inbox channel OR no channel)
+            query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
+            query = query.or('channel.eq.Inbox,channel.is.null');
         }
 
         const { data, error } = await query;
