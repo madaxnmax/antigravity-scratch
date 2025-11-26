@@ -1848,6 +1848,7 @@ const MetalFlowApp = () => {
     const [grants, setGrants] = useState([]);
     const [defaultGrantId, setDefaultGrantId] = useState(localStorage.getItem('defaultGrantId') || null);
     const [newCount, setNewCount] = useState(0);
+    const [quoteType, setQuoteType] = useState('Sheet');
 
 
     // Fetch grants on mount
