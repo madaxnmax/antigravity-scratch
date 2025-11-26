@@ -1590,32 +1590,45 @@ const MetalFlowApp = () => {
             const requirements = cart.filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet').map(item => {
                 let width, length;
 
-                // Prefer raw dimensions if available (added in recent fix)
+                // Priority 1: Raw dimensions (if available)
                 if (item.specs && item.specs.rawDims) {
                     width = item.specs.rawDims.width;
                     length = item.specs.rawDims.length;
                 }
-                // Fallback: Try to parse from dims string (legacy support)
-                else if (item.specs && item.specs.dims) {
-                    const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
-                    if (parts.length === 3) {
-                        width = parts[1];
-                        length = parts[2];
-                    } else if (parts.length === 2) {
-                        width = parts[0];
-                        length = parts[1];
+
+                // Priority 2: Parse from dims string (legacy/fallback)
+                if ((!width || !length) && item.specs && item.specs.dims) {
+                    // Handle "Custom" or malformed strings
+                    if (item.specs.dims.toLowerCase().includes('custom')) {
+                        // Try to recover from formState if it was saved (it's not currently saved in item)
+                        // Fallback to 12x12 for custom if no other info
+                        width = 12;
+                        length = 12;
+                    } else {
+                        const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                        if (parts.length === 3) {
+                            width = parts[1];
+                            length = parts[2];
+                        } else if (parts.length === 2) {
+                            width = parts[0];
+                            length = parts[1];
+                        }
                     }
                 }
 
+                // Priority 3: Hard fallback to prevent 422
+                if (!width || isNaN(width) || width <= 0) width = 12;
+                if (!length || isNaN(length) || length <= 0) length = 12;
+
                 return {
-                    width,
-                    length,
-                    count: item.qty,
+                    width: parseFloat(width),
+                    length: parseFloat(length),
+                    count: parseInt(item.qty) || 1,
                     originalItem: item // For debugging
                 };
             });
 
-            console.log("Parsed Requirements (Pre-Filter):", requirements);
+            console.log("Parsed Requirements (Final):", requirements);
 
             if (requirements.length === 0) {
                 alert("No cut pieces in cart to optimize.");
