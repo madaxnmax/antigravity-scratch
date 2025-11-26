@@ -276,12 +276,14 @@ const ConfigForm = ({ type, formState, onChange }) => {
                                 <FormInput label="Thick (-)" />
                             </div>
                             <div className="grid grid-cols-3 gap-4">
+                                <FormSelect label="Stock Size" options={["48x96", "48x120", "36x48", "Custom"]} value={formState?.stockSize} onChange={(e) => handleChange('stockSize', e)} />
+                                <FormInput label="Kerf (Blade)" placeholder="0.125" value={formState?.kerf} onChange={(e) => handleChange('kerf', e)} />
+                                <FormInput label="Edge Trim" placeholder="0.25" value={formState?.trim} onChange={(e) => handleChange('trim', e)} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
                                 <FormInput label="Masking Sides" />
                                 <FormInput label="# Sanded Sides" />
                                 <FormInput label="Grain Direction" suffix="deg" />
-                            </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <FormInput label="Kerf" placeholder="0.125" />
                             </div>
                         </>
                     ) : (
@@ -1592,14 +1594,81 @@ const MetalFlowApp = () => {
     // OptiCutter Integration
     const [optimizationData, setOptimizationData] = useState(null);
 
-    const handleOptimize = async (items) => {
+    const handleOptimize = async () => {
         try {
-            console.log("Optimizing items:", items);
+            console.log("Preparing optimization...");
+
+            // 1. Parse Requirements from Cart
+            const requirements = cart.filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet').map(item => {
+                // Parse dimensions from specs.dims (e.g., "0.125" x 10" x 20"")
+                // Assuming format: Thickness x Width x Length
+                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                // If 3 parts, assume T x W x L. If 2, W x L.
+                let width, length;
+                if (parts.length === 3) {
+                    width = parts[1];
+                    length = parts[2];
+                } else if (parts.length === 2) {
+                    width = parts[0];
+                    length = parts[1];
+                } else {
+                    // Fallback or skip
+                    width = 10;
+                    length = 10;
+                }
+
+                return {
+                    width,
+                    length,
+                    count: item.qty
+                };
+            });
+
+            if (requirements.length === 0) {
+                alert("No cut pieces in cart to optimize.");
+                return;
+            }
+
+            // 2. Parse Stock from Form State (or default)
+            // Default to 48x96 if not set or custom
+            let stockWidth = 48;
+            let stockLength = 96;
+
+            // If formState has stockSize, parse it
+            // Note: formState here is from the QuoteBuilder, but handleOptimize is inside MetalFlowApp.
+            // We need to access the current form state or let the user define available stock.
+            // For this iteration, we'll use a hardcoded stock list or a simple default, 
+            // as the "ConfigForm" state is local to QuoteBuilder and not easily accessible here without lifting state up further.
+            // However, we can use the `activeProductContext` or add a stock selector in the "Cost Analysis" view.
+            // For now, we will assume standard sheet sizes.
+
+            const stocks = [
+                { width: 48, length: 96, count: 100 },
+                { width: 36, length: 48, count: 100 }
+            ];
+
+            // 3. Get Kerf and Trim (Hardcoded default for now as they are in ConfigForm state which is not passed here)
+            // TODO: Lift ConfigForm state to QuoteBuilder to pass these preferences.
+            const kerf = 0.125;
+            const trim = 0.25;
+
+            const payload = {
+                stocks,
+                requirements,
+                kerf,
+                trim
+            };
+
+            console.log("Sending optimization payload:", payload);
+
             const res = await fetch('/opticutter/optimize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items }) // Simplified payload
+                body: JSON.stringify(payload)
             });
+
+            if (!res.ok) throw new Error("Optimization request failed");
+
             const data = await res.json();
             console.log("Optimization result:", data);
             setOptimizationData(data);

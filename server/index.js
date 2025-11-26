@@ -305,6 +305,8 @@ app.post('/opticutter/optimize', async (req, res) => {
     }
 
     try {
+        logger.info("Received OptiCutter optimization request", { payload: req.body });
+
         const response = await fetch('https://api.opticutter.com/linear', {
             method: 'POST',
             headers: {
@@ -321,6 +323,7 @@ app.post('/opticutter/optimize', async (req, res) => {
             return res.status(response.status).json(data);
         }
 
+        logger.info("OptiCutter optimization successful", { result: data });
         res.json(data);
     } catch (error) {
         logger.error("OptiCutter Error:", error);
