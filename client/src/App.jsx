@@ -712,14 +712,19 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, 
     // Load draft when thread changes
     useEffect(() => {
         if (thread) {
-            setSubject(draft?.subject || thread.subject || "");
-            setToField(draft?.to || (thread.to && thread.to.length > 0 ? thread.to : (thread.senderEmail ? [thread.senderEmail] : [])));
-            setCcField(draft?.cc || thread.cc || []);
-            setPendingReply(draft?.body || "");
-            setIsComposing(!!draft?.body || !!draft?.to?.length || !!draft?.cc?.length); // If there's any draft content, show composer
+            // Only load draft if we switched threads (or if it's the first load)
+            // This prevents resetting local state (cursor position, isComposing) when background refresh happens
+            if (thread.id !== lastLoadedThreadId.current) {
+                console.log("ThreadView: Switching to thread", thread.id);
+                setSubject(draft?.subject || thread.subject || "");
+                setToField(draft?.to || (thread.to && thread.to.length > 0 ? thread.to : (thread.senderEmail ? [thread.senderEmail] : [])));
+                setCcField(draft?.cc || thread.cc || []);
+                setPendingReply(draft?.body || "");
+                setIsComposing(!!draft?.body || !!draft?.to?.length || !!draft?.cc?.length); // If there's any draft content, show composer
 
-            // Mark this thread as loaded so we can safely save changes
-            lastLoadedThreadId.current = thread.id;
+                // Mark this thread as loaded so we can safely save changes
+                lastLoadedThreadId.current = thread.id;
+            }
         } else {
             // Clear state if no thread selected
             setSubject("");
