@@ -2,9 +2,20 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const Nylas = require('nylas');
 const path = require('path');
+const fs = require('fs');
+const logger = require('./src/services/logger');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Request Logging Middleware
+app.use((req, res, next) => {
+    logger.info(`Incoming request: ${req.method} ${req.url}`, {
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+    });
+    next();
+});
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -13,6 +24,9 @@ const supabaseKey = process.env.SUPABASE_KEY;
 let supabase = null;
 if (supabaseUrl && supabaseKey) {
     supabase = createClient(supabaseUrl, supabaseKey);
+    logger.info('Supabase client initialized');
+} else {
+    logger.warn('Supabase credentials missing');
 }
 
 // Initialize Nylas client
@@ -22,6 +36,9 @@ if (nylasApiKey) {
     nylas = new Nylas({
         apiKey: nylasApiKey,
     });
+    logger.info('Nylas client initialized');
+} else {
+    logger.warn('Nylas credentials missing');
 }
 
 
@@ -31,6 +48,7 @@ app.get('/ping', (req, res) => {
 
 app.get('/supabase', async (req, res) => {
     if (!supabase) {
+        logger.error('Supabase not configured request failed');
         return res.status(500).json({ error: 'Supabase not configured' });
     }
 
@@ -43,12 +61,14 @@ app.get('/supabase', async (req, res) => {
             url: supabaseUrl.replace(/^(https:\/\/)([^.]+)(.*)$/, '$1***$3')
         });
     } catch (error) {
+        logger.error('Supabase connection check failed', error);
         res.status(500).json({ error: error.message });
     }
 });
 
 app.get('/nylas', async (req, res) => {
     if (!nylas) {
+        logger.error('Nylas not configured request failed');
         return res.status(500).json({ error: 'Nylas not configured' });
     }
 
@@ -58,6 +78,7 @@ app.get('/nylas', async (req, res) => {
         const firstGrant = grants.data[0];
 
         if (!firstGrant) {
+            logger.warn('No Nylas grants found');
             return res.json({ status: 'Connected', message: 'No grants found. Please authenticate a user.' });
         }
 
@@ -73,7 +94,7 @@ app.get('/nylas', async (req, res) => {
             threads: threads.data
         });
     } catch (error) {
-        console.error("Nylas Error:", error);
+        logger.error("Nylas Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -94,7 +115,7 @@ app.get('/nylas/thread/:id', async (req, res) => {
 
         res.json({ messages: messages.data });
     } catch (error) {
-        console.error("Nylas Thread Error:", error);
+        logger.error("Nylas Thread Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -104,6 +125,7 @@ app.use(express.json());
 app.get('/opticutter', (req, res) => {
     const opticutterKey = process.env.OPTICUTTER_API_KEY;
     if (!opticutterKey) {
+        logger.error('OptiCutter not configured request failed');
         return res.status(500).json({ error: 'OptiCutter not configured' });
     }
     res.json({ status: 'OptiCutter Configured', apiKeyPresent: true });
@@ -128,18 +150,25 @@ app.post('/opticutter/optimize', async (req, res) => {
         const data = await response.json();
 
         if (!response.ok) {
+            logger.error('OptiCutter API error', { status: response.status, data });
             return res.status(response.status).json(data);
         }
 
         res.json(data);
     } catch (error) {
-        console.error("OptiCutter Error:", error);
+        logger.error("OptiCutter Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
 // Serve static files from the React client
-app.use(express.static(path.join(__dirname, '../client/dist')));
+const clientDistPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDistPath)) {
+    logger.info(`Serving static files from ${clientDistPath}`);
+    app.use(express.static(clientDistPath));
+} else {
+    logger.error(`Client dist directory not found at ${clientDistPath}`);
+}
 
 // AI Route
 const aiService = require('./src/services/ai');
@@ -153,6 +182,7 @@ app.post('/api/ai/parse-email', async (req, res) => {
         const result = await aiService.parseEmail(content);
         res.json(result);
     } catch (error) {
+        logger.error('Failed to parse email', error);
         res.status(500).json({ error: 'Failed to parse email' });
     }
 });
@@ -195,7 +225,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
 
         res.json(result);
     } catch (error) {
-        console.error('Pricing Route Error:', error);
+        logger.error('Pricing Route Error:', error);
         res.status(500).json({ error: 'Failed to calculate price' });
     }
 });
@@ -206,18 +236,23 @@ app.get('/version', (req, res) => {
 
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, '../client/dist/index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error("Error sending index.html:", err);
-            res.status(500).send("Error loading application: " + err.message);
-        }
-    });
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        logger.error(`Index file not found at ${indexPath}`);
+        res.status(500).send('Application build not found. Please check logs.');
+    }
 });
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    const indexPath = path.join(__dirname, '../client/dist/index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send('Not Found');
+    }
 });
 
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    logger.info(`Server running on port ${port}`);
 });
