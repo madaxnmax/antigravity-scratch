@@ -1,0 +1,341 @@
+﻿@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Workers
+@inject BCItemTransformation transform
+@inject IJSRuntime JSRuntime
+
+<div class="w-1/2 pl-2">
+    <div class="mb-4 border p-2 dark:border-gray-700">
+        <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+            <div>OVERRIDE</div>
+            <div>
+                <button onclick="@ResetOptions" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+            </div>
+        </div>
+        <div class="grid-cols-2 mb-2 grid gap-2">
+            <div class="grid-cols-1 mb-2 grid gap-2">
+                <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedGrade" @onchange="HandleGradeChange">
+                    <option value="">Grade</option>
+                    @foreach (var grade in grades)
+                    {
+                        <option value="@grade">@grade</option>
+                    }
+                </select>
+            </div>
+            <div class="grid-cols-1 mb-2 grid gap-2">
+                <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedColor" @onchange="HandleColorChange">
+                    <option value="">Color</option>
+                    @foreach (var color in colors)
+                    {
+                        <option value="@color">@color</option>
+                    }
+                </select>
+            </div>
+            <div class="grid-cols-1 mb-2 grid gap-2">
+                <select id="tubetype" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                        value="@selectedTubeType" @onchange="HandleTubeTypeChange">
+                    <option value="">Tube Type</option>
+                    <option value="Filament" disabled="@IsFilamentDisabled" class="@((IsFilamentDisabled ? "opacity-50 cursor-not-allowed" : ""))">Filament</option>
+                    <option value="Convolute">Convolute</option>
+                </select>
+            </div>
+        </div>
+
+
+        <div class="grid-cols-3 mb-2 grid gap-2">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="ID" @bind="tubeQuotes.ID">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="ID (+)" @bind="tubeQuotes.IDPlus">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="ID (-)" @bind="tubeQuotes.IDMinus">
+        </div>
+        <div class="grid-cols-3 mb-2 grid gap-2">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="OD" @bind="tubeQuotes.OD">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="OD (+)" @bind="tubeQuotes.ODPlus">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="OD (-)" @bind="tubeQuotes.ODMinus">
+        </div>
+        <div class="grid-cols-3 mb-2 grid gap-2">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Length" @bind="tubeQuotes.Length">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Length (+)" @bind="tubeQuotes.LengthPlus">
+            <input class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Length (-)" @bind="tubeQuotes.LengthMinus">           
+
+        </div>
+        <div class="grid-cols-3 mb-2 grid gap-4">
+            <!-- UOM -->
+            <div>
+                <label for="uom" class="mb-1 block text-xs dark:text-white">UOM</label>
+                <select id="uom" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedUnit" @onchange="HandleUOMChange">
+                    <option value="">UOM</option>
+                    <option value="EA">EA</option>
+                    <option value="FT">FT</option>
+                    <option value="CM">CM</option>
+                    <option value="MM">MM</option>
+                </select>
+            </div>
+
+            <!-- Price -->
+            <div>
+                <label for="price" class="mb-1 block text-xs dark:text-white">Price</label>
+                <input id="price" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                placeholder="Price" @bind="tubeQuotes.PriceUOM">
+            </div>
+        </div>
+
+
+        <input class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+        placeholder="Quantity:"
+        @bind="selectedQuantities"
+        @onblur="ValidateQuantities" />
+        <textarea class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Extra Comments:" @bind="tubeQuotes.Comments"></textarea>
+        @if (isLoading)
+        {
+            <button disabled class="flex w-full items-center justify-center bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                </svg>
+                Loading...
+            </button>
+        }
+        else
+        {
+            <button @onclick="AddToQuote" class="w-full bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                Add to Quote
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public string Customer { get; set; }
+    [Parameter]
+    public EventCallback<TubeQuote> TubeOnAdd { get; set; }
+
+    string selectedGrade { get; set; }
+    string selectedColor { get; set; }
+
+    string selectedUnit { get; set; }
+    string selectedTubeType { get; set; }
+    string selectedQuantities { get; set; }
+    bool isLoading = false;
+    bool DataLoading = false;
+    private List<string> grades = new List<string>();
+    private List<string> colors = new List<string>();
+
+    public List<ItemAttributes> tubeItemAttributes { get; set; }
+    public List<ItemAttributes> itemHolder { get; set; }
+
+    public TubeQuote tubeQuotes = new TubeQuote();
+    private List<string> validationMessages = new List<string>();
+
+    private static readonly HashSet<string> restrictedGrades = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "G9","LE","XX","CE","X","C","L","G7"
+    };
+    private bool IsFilamentDisabled => !string.IsNullOrEmpty(selectedGrade) && restrictedGrades.Contains(selectedGrade);
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        isLoading = true; // Data is loaded
+        DataLoading = true;
+        if (tubeItemAttributes == null)
+        {
+            tubeItemAttributes = await transform.TransformBCItemAttributes("Tube");
+        }
+        itemHolder = tubeItemAttributes;
+        grades = tubeItemAttributes
+            .Where(attr => attr.NEMAGrade != null && attr.Color != null)
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+
+        isLoading = false; // Data is loaded
+        DataLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task ResetOptions()
+    {
+        selectedGrade = "";        
+        selectedTubeType = string.Empty;
+        grades = new List<string>();
+        tubeQuotes = new TubeQuote();
+        colors = new List<string>();
+        selectedColor = string.Empty;
+        selectedQuantities = string.Empty;
+        tubeItemAttributes = itemHolder;
+        grades = tubeItemAttributes
+            .Where(attr => attr.NEMAGrade != null && attr.Color != null)
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        validationMessages = new List<string>();
+        isLoading = false;
+    }
+    private async Task HandleGradeChange(ChangeEventArgs e)
+    {
+        selectedGrade = e.Value.ToString();
+        tubeQuotes.Grade  = selectedGrade;
+        colors = itemHolder
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Color != null)
+            .Select(attr => attr.Color)
+            .Distinct()
+            .ToList();
+
+        if (restrictedGrades.Contains(selectedGrade))
+        {
+            selectedTubeType = "Convolute"; //specify grade tube type
+            tubeQuotes.TubeType = "Convolute";
+        }
+    }
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+        selectedColor = e.Value.ToString();
+        tubeQuotes.Grade = selectedGrade;
+    }
+    private async Task HandleUOMChange(ChangeEventArgs e)
+    {
+        selectedUnit = e.Value.ToString();
+        tubeQuotes.UOM = selectedUnit;
+    }
+
+    private async Task HandleTubeTypeChange(ChangeEventArgs e)
+    {
+        selectedTubeType = e.Value.ToString();
+        tubeQuotes.TubeType = selectedTubeType;
+    }
+
+    private void ValidateQuantities()
+    {
+        try
+        {
+            validationMessages.Clear(); // Clear previous messages
+            if (selectedQuantities.Any())
+            {
+                var quantities = selectedQuantities.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (var q in quantities)
+                {
+                    if (!int.TryParse(q.Trim(), out int qty)) // Trim to remove any leading/trailing spaces
+                    {
+                        validationMessages.Add($"- Quantity '{q}' must be a number.");
+                        continue; // Skip further checks for this item
+                    }
+
+                    // if (qty % 4 != 0)
+                    // {
+                    //     validationMessages.Add($"- Quantity '{q}' is not a multiple of 4.");
+                    // }                    // if (qty % 4 != 0)
+                    // {
+                    //     validationMessages.Add($"- Quantity '{q}' is not a multiple of 4.");
+                    // }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            validationMessages.Add($"- {ex.Message}");
+        }
+    }
+
+    public async Task<bool> ErrorHandling()
+    {
+        var validationMessagesError = new List<string>();
+
+        if (string.IsNullOrEmpty(selectedGrade))
+        {
+            validationMessagesError.Add("- Grade");
+        }        
+        if (string.IsNullOrEmpty(selectedTubeType))
+        {
+            validationMessagesError.Add("- Tube Type");
+        }
+        if (string.IsNullOrEmpty(selectedUnit))
+        {
+            validationMessagesError.Add("- UOM");
+        }
+        if (string.IsNullOrEmpty(Customer))
+        {
+            validationMessagesError.Add("- Customer");
+        }
+        if (string.IsNullOrEmpty(selectedQuantities))
+        {
+            validationMessagesError.Add("- Quantity");
+        }
+
+        else
+        {
+            var quantities = selectedQuantities.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var q in quantities)
+            {
+                if (!int.TryParse(q, out int qty))
+                {
+                    validationMessagesError.Add($"- Quantity '{q}' must be a number");
+                    break;
+                }
+            }
+        }
+        ValidateQuantities();
+        // Check if there are any missing fields
+        if (validationMessagesError.Any() || validationMessages.Any())
+        {
+            foreach (var v in validationMessages)
+            {
+                validationMessagesError.Add(v);
+            }
+            // Construct the alert message
+            string alertMessage = "Please complete the following fields before proceeding:\n" + string.Join("\n", validationMessagesError);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution
+            return true;
+        }
+        return false;
+    }
+
+    private async Task AddToQuote()
+    {
+        isLoading = true;
+        try
+        {
+            var errors = await ErrorHandling();
+            if (errors)
+            {
+                isLoading = false;
+                return;
+            }
+            tubeQuotes.Customer = Customer;
+            // Add your logic here to populate sheetQuote as needed
+            tubeQuotes.Grade = selectedGrade;
+            tubeQuotes.UOM = selectedUnit;
+            tubeQuotes.Color = selectedColor;
+            ItemAttributes selectedItem = null;
+            var quantities = selectedQuantities.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach(var q in quantities)
+            {
+                tubeQuotes.Quantity = q;
+                await TubeOnAdd.InvokeAsync(tubeQuotes);
+            }
+           // quantityPricing = await transform.CalculatePricingForQuantities(tubeQuotes.Quantity, selectedItem.ItemNumber, Customer);
+           
+
+            ResetOptions();
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+        }
+
+        // Optionally reset sheetQuote or update UI as needed after adding
+    }
+
+}

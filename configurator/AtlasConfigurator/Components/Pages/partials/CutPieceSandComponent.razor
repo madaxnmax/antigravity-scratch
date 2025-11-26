@@ -1,0 +1,2843 @@
+﻿@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.CutAlgorithm
+@using AtlasConfigurator.Models.CutPieceSand
+@using AtlasConfigurator.Models.Transformed
+@using System.Globalization
+@using AtlasConfigurator.Services
+@using AtlasConfigurator.Services.CutAlgorithm
+@using AtlasConfigurator.Workers
+@using AtlasConfigurator.Workers.CutPieceSand
+@inject IMaterialService MaterialService
+@inject IProportionValueService ProportionValueService
+@inject IMaterialkMultiplierService MaterialkMultiplierService
+@inject IThicknessMultiplierService ThicknessMultiplierService
+@inject IBandMultiplierService BandMultiplierService
+@inject Costing costing
+@inject Testing testing
+@inject IJSRuntime JSRuntime
+@inject Optimizations optimizations
+@inject Authentication _Authentication
+@inject Pricing p
+@inject BCItemTransformation bCItemTransformation
+
+<div class="w-1/2 pl-2">
+    <div class="mb-4 border p-2 dark:border-gray-700">
+        <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+            <div>OVERRIDE</div>
+            <div>
+                <button onclick="@ResetOptions" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+            </div>
+        </div>
+        @*         <input class="mb-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @onblur="HandleOverrideChange" placeholder="Parent SKU:" @bind="@ParentSKU">
+        *@
+        <div class="flex items-center">
+            <input class="mb-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @onblur="HandleOverrideChange" placeholder="Parent SKU:" @bind="@ParentSKU">
+            <div class="ml-4 flex items-center">
+                <label for="sandingOnly" class="mb-1 block text-xs dark:text-white">Sanding Only</label>
+                <input type="checkbox" id="sandingOnly" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                @onchange="HandleCheckboxChange">
+            </div>
+            <div class="ml-4 flex items-center">
+                <label for="customerMaterial" class="mb-1 block text-xs dark:text-white">Customer Material</label>
+                <input type="checkbox" id="customerMaterial" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                checked="@CustomerMaterialOnly" @onchange="HandleCustomerMaterialCheckboxChange">
+            </div>
+
+            <div class="ml-4 flex items-center">
+                <label for="customMaterial" class="mb-1 block text-xs dark:text-white">Custom Material</label>
+                <input type="checkbox" id="customMaterial" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                checked="@CustomMaterialOnly" @onchange="HandleCustomMaterialCheckboxChange">
+            </div>
+            <div class="ml-4 flex items-center">
+                <label for="maskingOnly" class="mb-1 block text-xs dark:text-white">Masking Only</label>
+                <input type="checkbox" id="maskingOnly" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                checked="@isMaskingOnly" @onchange="HandleMaskingCheckboxChange">
+            </div>
+            <div class="ml-4 flex items-center">
+                <label for="removeGlossOnly" class="mb-1 block text-xs dark:text-white">Sand to Remove Gloss</label>
+                <input type="checkbox" id="maskingOnly" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                checked="@removeGlossOnly" @onchange="HandleRemoveGlossOnlyCheckboxChange">
+            </div>
+
+        </div>
+
+
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <!-- Grade Dropdown -->
+            <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            value="@selectedGrade" @onchange="HandleGradeChange" disabled="@GradeDisabled">
+                <option value="">Grade</option>
+                @foreach (var grade in grades)
+                {
+                    <option value="@grade">@grade</option>
+                }
+            </select>
+
+            <!-- Thickness Dropdown -->
+            <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            value="@selectedThickness" @onchange="HandleThicknessChange" disabled="@ThicknessDisabled">
+                <option value="0.000">Thickness</option>
+                @if (thicknesses != null)
+                {
+                    @foreach (var thickness in thicknesses)
+                    {
+                        <option value="@thickness">@thickness</option>
+                    }
+                }
+
+            </select>
+            <!-- Size Dropdown -->
+            <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            value="@cutPieceSandQuotes.Size" @onchange="HandleSizeChange" disabled="@SizeDisabled">
+                <option value="Select Size">Select Size</option>
+                <option value="Normal Stocked Sizes">Normal Stocked Sizes</option>
+
+                @foreach (var size in sizes)
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+            <!-- Color Dropdown -->
+            <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            value="@cutPieceSandQuotes.Color" @onchange="HandleColorChange" disabled="@ColorDisabled">
+                <option value="">Select Color</option>
+                @foreach (var color in colors)
+                {
+                    <option value="@color">@color</option>
+                }
+            </select>
+
+        </div>
+        @if (CustomerMaterialOnly || CustomMaterialOnly)
+        {
+            <div class="mb-2 grid grid-cols-3 gap-2">
+                <div>
+                    <label for="customGrade" class="mb-1 block text-xs dark:text-white">Grade</label>
+                    <input id="customGrade" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.Grade">
+                </div>
+                <div>
+                    <label for="customColor" class="mb-1 block text-xs dark:text-white">Color</label>
+                    <input id="customColor" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.Color">
+                </div>
+                <br />
+                <div>
+                    <label for="sheetLength" class="mb-1 block text-xs dark:text-white">Sheet Length</label>
+                    <input id="sheetLength" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="SheetLength">
+                </div>
+                <div>
+                    <label for="sheetWidth" class="mb-1 block text-xs dark:text-white">Sheet Width</label>
+                    <input id="sheetWidth" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="SheetWidth">
+                </div>
+                <div>
+                    <label for="sheetWidth" class="mb-1 block text-xs dark:text-white">Sheet Thickness</label>
+                    <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="SheetThickness">
+                </div>
+
+                @if (CustomMaterialOnly)
+                {
+                    <div>
+                        <label for="custPrice" class="mb-1 block text-xs dark:text-white">Price Per</label>
+                        <input id="custPrice" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="CustomerPrice">
+                    </div>
+                }
+
+
+                @if (CustomMaterialOnly)
+                {
+                    <div>
+                        <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">Min Custom Sheets</label>
+                        <input id="custMinSheet" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="CustomMinSheetMaterial">
+                    </div>
+                }
+
+            </div>
+        }
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="length" class="mb-1 block text-xs dark:text-white">Length</label>
+                <input id="length" type="number" min="0" style="@(isSandingOnly || isMaskingOnly ? "opacity: 0.5;" : "")" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" disabled="@(isSandingOnly || isMaskingOnly)" onblur="@HandleLegnthChange" @bind="cutPieceSandQuotes.Length">
+            </div>
+            <div>
+                <label for="lengthPlus" class="mb-1 block text-xs dark:text-white">Length (+)</label>
+                <input id="lengthPlus" min="0.000" type="number" step="0.001" disabled="@(isSandingOnly || isMaskingOnly)" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength; @(isSandingOnly  || isMaskingOnly? "opacity: 0.5;" : "")" @bind="cutPieceSandQuotes.LengthPlus">
+            </div>
+            <div>
+                <label for="lengthMinus" class="mb-1 block text-xs dark:text-white">Length (-)</label>
+                <input id="lengthMinus" min="0.000" type="number" step="0.001" disabled="@(isSandingOnly || isMaskingOnly)" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength; @(isSandingOnly  || isMaskingOnly ? "opacity: 0.5;" : "")" @bind="cutPieceSandQuotes.LengthMinus">
+            </div>
+        </div>
+
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="width" class="mb-1 block text-xs dark:text-white">Width</label>
+                <input id="width" type="number" min="0" disabled="@(isSandingOnly || isMaskingOnly)" style="@(isSandingOnly || isMaskingOnly ? "opacity: 0.5;" : "")" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" onblur="@HandleWidthChange" @bind="cutPieceSandQuotes.Width">
+            </div>
+            <div>
+                <label for="widthPlus" class="mb-1 block text-xs dark:text-white">Width (+)</label>
+                <input id="widthPlus" min="0.000" type="number" step="0.001" disabled="@(isSandingOnly || isMaskingOnly)" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorWidth; @(isSandingOnly || isMaskingOnly ? "opacity: 0.5;" : "")" @bind="cutPieceSandQuotes.WidthPlus">
+            </div>
+            <div>
+                <label for="widthMinus" class="mb-1 block text-xs dark:text-white">Width (-)</label>
+                <input id="widthMinus" min="0.000" type="number" step="0.001" disabled="@(isSandingOnly || isMaskingOnly)" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorWidth; @(isSandingOnly || isMaskingOnly ? "opacity: 0.5;" : "")" @bind="cutPieceSandQuotes.WidthMinus">
+            </div>
+        </div>
+
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="sandedThickness" class="mb-1 block text-xs dark:text-white">Sanded Thickness</label>
+                <input id="sandedThickness" style="@(isMaskingOnly ? "opacity: 0.5;" : "")" min="0.000" type="number" step="0.001" disabled="@isMaskingOnly" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.SandedThickness">
+            </div>
+            <div>
+                <label for="thickPlus" class="mb-1 block text-xs dark:text-white">Thick (+)</label>
+                <input id="thickPlus" style="@(isMaskingOnly ? "opacity: 0.5;" : "")" min="0.000" type="number" disabled="@isMaskingOnly" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.ThickPlus">
+            </div>
+            <div>
+                <label for="thickMinus" class="mb-1 block text-xs dark:text-white">Thick (-)</label>
+                <input id="thickMinus" style="@(isMaskingOnly ? "opacity: 0.5;" : "")" min="0.000" type="number" disabled="@isMaskingOnly" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.ThickMinus">
+            </div>
+        </div>
+
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="maskingSides" class="mb-1 block text-xs dark:text-white">Masking Sides</label>
+                <input id="maskingSides" style="@(isSandingOnly ? "opacity: 0.5;" : "")" min="0" max="2" type="number" step="1" disabled="@isSandingOnly" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="cutPieceSandQuotes.MaskingSides">
+            </div>
+        </div>
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div class="flex flex-col">
+                <label for="SandedSides" class="mb-1 text-xs dark:text-white"># Sanded Sides</label>
+                <input id="SandedSides" style="@(isMaskingOnly ? "opacity: 0.5;" : "")" min="0" type="number" disabled="@isMaskingOnly" class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="# Sanded Sides" @bind="cutPieceSandQuotes.SandedSides">
+            </div>
+            <div class="flex flex-col">
+                <label for="GrainDirection" class="mb-1 text-xs dark:text-white">Grain Direction?</label>
+                <input id="GrainDirection" style="@(isMaskingOnly ? "opacity: 0.5;" : "")" class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" disabled="@isMaskingOnly" placeholder="Grain Direction?" @bind="cutPieceSandQuotes.GrainDirection">
+            </div>
+            <div class="flex flex-col">
+                <label for="Kerf" class="mb-1 text-xs dark:text-white">Kerf</label>
+                <input id="Kerf" disabled="@DisabledKerf" style="color: @kerfColor; @(isSandingOnly || isMaskingOnly ? "opacity: 0.5;" : "")" class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Kerf" @bind="Kerf">
+            </div>
+        </div>
+
+        <input class="my-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Quantity:" @bind="cutPieceSandQuotes.Quantity">
+        <textarea class="mb-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Extra Comments:" @bind="cutPieceSandQuotes.ExtraComments"></textarea>
+        @if (isLoading)
+        {
+            <button disabled class="flex w-full items-center justify-center bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                </svg>
+                Loading...
+            </button>
+        }
+        else
+        {
+            <button @onclick="AddToQuote" class="w-full bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                Add to Quote
+            </button>
+        }
+
+
+
+    </div>
+</div>
+
+@code {
+    decimal MaskingPriceOneSides = 15;
+    decimal MaskingPriceTwoSides = 20;
+    // Define properties for each input field
+    string ParentSKU { get; set; }
+    string Grade { get; set; }
+    string Thickness { get; set; }
+    string GrainDirection { get; set; }
+    string Length { get; set; }
+    string LengthPlus { get; set; }
+    string LengthMinus { get; set; }
+    string Width { get; set; }
+    string WidthPlus { get; set; }
+    string WidthMinus { get; set; }
+    string SandedThickness { get; set; }
+    string ThickPlus { get; set; }
+    string ThickMinus { get; set; }
+    string SandedSides { get; set; }
+    string ExtraComments { get; set; }
+    string SizeDropdown { get; set; }
+    string ThicknessDropdown { get; set; }
+    string GradeDropdown { get; set; }
+    private decimal Kerf = 0;
+    private decimal sandingTotal = 0.00M;
+    private decimal sandingTotalPerPiece = 0.00M;
+    private bool isSandingOnly = false;
+    private bool isMaskingOnly = false;
+    private decimal maskingTotal = 0.00M;
+    private decimal maskingTotalPerPiece = 0.00M;
+    private bool removeGlossOnly = false;
+    private bool GradeDisabled = false;
+    private bool ThicknessDisabled = false;
+    private bool SizeDisabled = false;
+    private bool ColorDisabled = false;
+
+    public string ItemNo { get; set; }
+
+    private List<string> grades = new List<string>();
+    private List<string> thicknesses = new List<string>();
+    private List<string> colors = new List<string>();
+    private List<string> sizes = new List<string>();
+
+    private string selectedGrade = "";
+    private string selectedThickness = "";
+    private string selectedColor = "";
+    private string selectedSize = "";
+
+    private string toleranceColorWidth = "";
+    private string toleranceColorLength = "";
+    private string kerfColor = "";
+
+    private bool DisabledKerf = true;
+
+    public decimal CustomerPrice = 0.00M;
+    public decimal SheetLength = 0.00M;
+    public decimal SheetWidth = 0.00M;
+    public decimal SheetThickness = 0.00M;
+
+    private bool CustomerMaterialOnly = false;
+    private bool CustomMaterialOnly = false;
+    public CutPieceSandQuote cutPieceSandQuotes = new CutPieceSandQuote();
+    private Helpers helpers = new Helpers();
+
+    private int CustomMinSheetMaterial = 0;
+
+    [Parameter]
+    public List<ItemAttributes> BCItemAttributes { get; set; }
+
+    [Parameter]
+    public string Customer { get; set; }
+
+    [Parameter]
+    public EventCallback<CutPieceSandQuote> CutPieceSandOnAdd { get; set; }
+
+    private bool isLoading = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        cutPieceSandQuotes = new CutPieceSandQuote();
+        // grades = await MaterialService.GetGradesAsync();
+        if (BCItemAttributes != null)
+        {
+            grades = BCItemAttributes
+                .Where(attr => attr.NEMAGrade != null && !string.IsNullOrEmpty(attr.LengthIn) && !string.IsNullOrEmpty(attr.WidthIn))
+                .Select(attr => attr.NEMAGrade)
+                .Distinct()
+                .ToList();
+
+            cutPieceSandQuotes.LengthPlus = 0.06M;
+            cutPieceSandQuotes.WidthPlus = 0.06M;
+            cutPieceSandQuotes.ThickPlus = .010M;
+            cutPieceSandQuotes.ThickMinus = .010M;
+
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleOverrideChange(FocusEventArgs e)
+    {
+        var sku = ParentSKU;
+        var result = BCItemAttributes.Where(x => x.ItemNumber == sku).ToList();
+        if (result.Count > 0)
+        {
+            selectedGrade = result.Select(x => x.NEMAGrade).FirstOrDefault();
+            selectedThickness = result.Select(x => x.Thicknesses).FirstOrDefault().ToString();
+
+
+            thicknesses.Clear();
+            thicknesses = result.Select(x => x.Thicknesses).ToList(); //await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+            sizes.Clear();
+
+            //         sizes = result
+            // .Select(x => $"{x.LengthIn}x{x.WidthIn}") // Format each element as "LxW"
+            // .Distinct() // Ensure each "LxW" format is unique
+            // .ToList(); // Convert to List<string>
+
+            // var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48" }; // Define the desired sizes
+
+            // sizes = result
+            //     .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+            //     .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+            //     .Where(size => desiredSizes.Contains(size)) // Filter to only desired sizes
+            //     .Distinct() // Remove duplicates
+            //     .OrderBy(size => size) // Optionally order the sizes
+            //     .ToList();
+
+            var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48", "48x36", "48x96" };
+            // Define the desired sizes
+
+            sizes = result
+               .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+               .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+               .Where(size => desiredSizes.Contains(size)) // Filter to only desired sizes
+               .Distinct() // Remove duplicates
+               .ToList();
+
+            // Check if "36x48" or "96x48" exist
+            bool hasOtherSizes = sizes.Contains("36x48") || sizes.Contains("96x48");
+
+            // Exclude "48x48" if the other sizes exist
+            if (hasOtherSizes)
+            {
+                sizes.Remove("48x48");
+            }
+
+            // Optionally order the sizes
+            sizes = sizes.OrderBy(size => size).ToList();
+
+
+
+            selectedSize = sizes.FirstOrDefault();
+            colors.Clear();
+            colors = result.Select(x => x.Color).Distinct().ToList();
+            selectedColor = colors.FirstOrDefault();
+
+            cutPieceSandQuotes.ParentSKU = ParentSKU;
+            cutPieceSandQuotes.Grade = selectedGrade;
+            cutPieceSandQuotes.Thickness = decimal.Parse(selectedThickness, CultureInfo.InvariantCulture);
+            cutPieceSandQuotes.Color = selectedColor;
+            cutPieceSandQuotes.Size = selectedSize;
+        }
+    }
+
+    private async Task HandleGradeChange(ChangeEventArgs e)
+    {
+        GradeDisabled = true;
+        selectedGrade = e.Value.ToString();
+        cutPieceSandQuotes.Grade = selectedGrade;
+
+        //thicknesses = await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+        thicknesses = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses != null)
+            .Select(attr => attr.Thicknesses)
+            .Distinct()
+       .OrderBy(thickness => decimal.Parse(thickness, CultureInfo.InvariantCulture))
+            .ToList();
+        selectedThickness = ""; // Reset thickness selection
+        colors.Clear(); // Reset colors as well
+    }
+
+    private async Task HandleThicknessChange(ChangeEventArgs e)
+    {
+        ThicknessDisabled = true;
+        selectedThickness = e.Value?.ToString();
+        cutPieceSandQuotes.Thickness = Convert.ToDecimal(selectedThickness);
+        // Filter items based on the selected grade and thickness.
+        var filteredItems = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness)
+            .ToList();
+
+        // Construct the size string from WidthIn and LengthIn, and collect distinct values.
+        // sizes = filteredItems
+        //     .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+        //     .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+        //     .Distinct() // Remove duplicates
+        //     .OrderBy(size => size) // Optionally order the sizes
+        //     .ToList();
+
+        // var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48" }; // Define the desired sizes
+
+
+        // sizes = filteredItems
+        //     .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+        //     .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+        //     .Where(size => desiredSizes.Contains(size)) // Filter to only desired sizes
+        //     .Distinct() // Remove duplicates
+        //     .OrderBy(size => size) // Optionally order the sizes
+        //     .ToList();
+
+
+        var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48", "48x36", "48x96" };
+        // Define the desired sizes
+
+        sizes = filteredItems
+            .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+            .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+            .Where(size => desiredSizes.Contains(size)) // Filter to only desired sizes
+            .Distinct() // Remove duplicates
+            .ToList();
+
+        // Check if "36x48" or "96x48" exist
+        bool hasOtherSizes = sizes.Contains("36x48") || sizes.Contains("96x48");
+
+        // Exclude "48x48" if the other sizes exist
+        if (hasOtherSizes)
+        {
+            sizes.Remove("48x48");
+        }
+
+        // Optionally order the sizes
+        sizes = sizes.OrderBy(size => size).ToList();
+
+
+    }
+
+    private async Task HandleSizeChange(ChangeEventArgs e)
+    {
+        SizeDisabled = true;
+        var selectedValue = e.Value?.ToString();
+        if (selectedValue == "Normal Stocked Sizes")
+        {
+            selectedSize = selectedValue;
+            colors = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && !string.IsNullOrEmpty(attr.Color))
+            .Select(attr => attr.Color)
+            .Distinct()
+            .ToList();
+        }
+        else
+        {
+            selectedSize = selectedValue;
+            cutPieceSandQuotes.Size = selectedSize;
+            // Assuming selectedSize is like "48x96"
+            LengthWidth lw = new LengthWidth();
+            var size = lw.GetLengthWidthFromCombinedSize(selectedSize);
+            colors = BCItemAttributes
+    .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && Convert.ToInt32(attr.LengthIn) == size.Length && Convert.ToInt32(attr.WidthIn) == size.Width && !string.IsNullOrEmpty(attr.Color))
+    .Select(attr => attr.Color)
+    .Distinct()
+    .ToList();
+        }
+
+
+
+        //colors = await MaterialService.GetColorsByGradeAndThicknessAndSizeAsync(selectedGrade, selectedThickness, selectedSize);
+    }
+
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+        ColorDisabled = true;
+        selectedColor = e.Value?.ToString();
+        cutPieceSandQuotes.Color = selectedColor;
+        if (selectedSize == "Normal Stocked Sizes")
+        {
+            var selectedItem = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && attr.Color == selectedColor)
+            .FirstOrDefault();
+
+            var result = await MaterialService.GetMaterialByNo(selectedItem.ItemNumber);
+            var kerfData = await MaterialService.GetMaterialKerfByGradeThickness(selectedItem.NEMAGrade, Convert.ToDecimal(selectedThickness));
+            if (result.Any())
+            {
+                var resultItem = result.FirstOrDefault();
+                Kerf = kerfData;
+                cutPieceSandQuotes.Kerf = Kerf;
+            }
+            else
+            {
+                Kerf = kerfData;
+                cutPieceSandQuotes.Kerf = Kerf;
+            }
+        }
+        else
+        {
+            LengthWidth lw = new LengthWidth();
+            var sizes = lw.GetLengthWidthFromCombinedSize(selectedSize);
+
+            var selectedItem = BCItemAttributes
+                .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && Convert.ToInt32(attr.LengthIn) == sizes.Length && Convert.ToInt32(attr.WidthIn) == sizes.Width && attr.Color == selectedColor)
+                .FirstOrDefault();
+            ItemNo = selectedItem.ItemNumber;
+            var kerfData = await MaterialService.GetMaterialKerfByGradeThickness(selectedItem.NEMAGrade, Convert.ToDecimal(selectedThickness));
+            var result = await MaterialService.GetMaterialByNo(selectedItem.ItemNumber);
+            var resultItem = result.FirstOrDefault();
+            Kerf = kerfData;
+
+            cutPieceSandQuotes.Kerf = Kerf;
+        }
+        if (Kerf == 0)
+        {
+            DisabledKerf = false;
+            Kerf = 0.2M;
+            kerfColor = "Red";
+        }
+
+    }
+    private async Task ProcessSandingOnlyChange(string connectionId)
+    {
+        Sanding sand = new Sanding();
+        LengthWidth lw = new LengthWidth();
+        List<ItemAttributes> stocks = new List<ItemAttributes>();
+        LengthWidth stocksize;
+
+        cutPieceSandQuotes.CustomerMaterialOnly = CustomerMaterialOnly;
+        cutPieceSandQuotes.CustomMaterialOnly = CustomMaterialOnly;
+
+        var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        if (quantities.Length > 5)
+        {
+            string alertMessage = "Please reduce quantity calculations to 5 or less.";
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            isLoading = false;
+            return;
+        }
+
+        if (CustomerMaterialOnly || CustomMaterialOnly)
+        {
+
+            if (SheetThickness < cutPieceSandQuotes.SandedThickness)
+            {
+                string alertMessage = "Sanded Thickness is less than or equal to Thickness.";
+                await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                isLoading = false;
+                return;
+            }
+            cutPieceSandQuotes.SandingOnly = true;
+            stocksize = new LengthWidth
+                {
+                    Length = Convert.ToInt32(SheetLength),
+                    Width = Convert.ToInt32(SheetWidth)
+                };
+            stocks = new List<ItemAttributes>
+                {
+                    new ItemAttributes(Guid.NewGuid().ToString())
+                    {
+                        LengthIn = stocksize.Length.ToString(),
+                        WidthIn = stocksize.Width.ToString(),
+                        Thicknesses = SheetThickness.ToString(),
+                        NEMAGrade = cutPieceSandQuotes.Grade,
+                        Color = cutPieceSandQuotes.Color
+                    }
+                };
+            cutPieceSandQuotes.Size = string.Concat(stocksize.Length.ToString(), "x", stocksize.Width.ToString());
+
+            foreach (var q in quantities)
+            {
+                if (cutPieceSandQuotes.SandedThickness > 0)
+                {
+                    decimal sandedToleranceMinus = 0M;
+
+                    sandingTotal = sand.SheetSandSimple(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, stocks, Convert.ToInt32(q));
+                    if (sandingTotal > 0)
+                    {
+                        sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                    }
+                }
+                var stock = stocks.FirstOrDefault();
+                var finalUsedStock = new FinalUsedStock
+                    {
+                        StockSku = stock.ItemNumber,
+                        Length = Convert.ToInt32(stock.LengthIn),
+                        Width = Convert.ToInt32(stock.WidthIn),
+                        StockQty = Convert.ToInt32(q)
+                    };
+                var finalUsedStocks = new List<FinalUsedStock>();
+                finalUsedStocks.Add(finalUsedStock);
+
+                QuantityPricing quantityPricing;
+                decimal customerFinalTotal;
+
+                if (CustomerMaterialOnly)
+                {
+                    if (sandingTotal < 150)
+                    {
+                        customerFinalTotal = 150;
+                    }
+                    else
+                    {
+                        customerFinalTotal = sandingTotal;
+                    }
+                    quantityPricing = new QuantityPricing(0, 0);
+
+                }
+                else
+                {
+                    quantityPricing = new QuantityPricing(Convert.ToInt32(q), CustomerPrice);
+                    customerFinalTotal = quantityPricing.TotalPrice + sandingTotal;
+                }
+                decimal stockTotalPricing = quantityPricing.TotalPrice;
+                if (stockTotalPricing <= 0)
+                {
+                    stockTotalPricing = customerFinalTotal;
+                }
+
+                // if(CustomerMaterialOnly)
+                // {
+                //     cutPieceSandQuotes.Grade = "NA";
+
+                // }
+                // else
+                // {
+                //     cutPieceSandQuotes.Grade = "NA";
+
+                // }
+                cutPieceSandQuotes.Thickness = SheetThickness;
+                // cutPieceSandQuotes.Color = "NA";
+
+
+                var returnData = new CutPieceSandPricing
+                    {
+                        TotalCustomerCostPerPiece = customerFinalTotal / Convert.ToInt32(q),
+                        TotalCustomerCostTimesQuantity = customerFinalTotal,
+                        StockTotal = stockTotalPricing,
+                        RebateTotal = 0.00M,
+                        CutCostTotal = 0.00M,
+                        SandingTotal = sandingTotal,
+                        Quantity = Convert.ToInt32(q),
+                        PDF = null,
+                        StockUsed = finalUsedStocks,
+                        DiscountPercentage = quantityPricing.DiscountPercentage
+                    };
+                cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+            }
+            cutPieceSandQuotes.Kerf = 0.00M;
+            cutPieceSandQuotes.Length = 0.00M;
+            cutPieceSandQuotes.LengthMinus = 1.00M;
+            cutPieceSandQuotes.LengthPlus = 1.00M;
+            cutPieceSandQuotes.Width = 0.00M;
+            cutPieceSandQuotes.WidthMinus = 1.00M;
+            cutPieceSandQuotes.WidthPlus = 1.00M;
+
+            CutPieceSandQuote cut = new CutPieceSandQuote();
+            cut = cutPieceSandQuotes;
+            ResetOptions();
+            isLoading = false;
+            await CutPieceSandOnAdd.InvokeAsync(cut);
+
+        }
+        else
+        {
+
+
+            if (cutPieceSandQuotes.Thickness < cutPieceSandQuotes.SandedThickness)
+            {
+                string alertMessage = "Sanded Thickness is less than or equal to Thickness.";
+                await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                isLoading = false;
+                return;
+            }
+            cutPieceSandQuotes.SandingOnly = true;
+
+            stocksize = lw.GetLengthWidthFromCombinedSize(selectedSize);
+
+            stocks = BCItemAttributes
+            .Where(x => x.NEMAGrade == selectedGrade
+                && x.Thicknesses == selectedThickness
+                && Convert.ToInt32(x.LengthIn) == stocksize.Length
+                && Convert.ToInt32(x.WidthIn) == stocksize.Width
+                && x.Color == selectedColor)
+                .ToList();
+
+
+            cutPieceSandQuotes.Size = selectedSize;
+
+
+            foreach (var q in quantities)
+            {
+
+                if (cutPieceSandQuotes.SandedThickness > 0)
+                {
+                    decimal sandedToleranceMinus = 0M;
+
+                    sandingTotal = sand.SheetSandSimple(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, stocks, Convert.ToInt32(q));
+                    if (sandingTotal > 0)
+                    {
+                        sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                    }
+                }
+                var stock = stocks.FirstOrDefault();
+                var finalUsedStock = new FinalUsedStock
+                    {
+                        StockSku = stock.ItemNumber,
+                        Length = Convert.ToInt32(stock.LengthIn),
+                        Width = Convert.ToInt32(stock.WidthIn),
+                        StockQty = Convert.ToInt32(q)
+                    };
+                var finalUsedStocks = new List<FinalUsedStock>();
+                finalUsedStocks.Add(finalUsedStock);
+
+                var quantityPricing = await bCItemTransformation.CalculatePricingForQuantitySimple(Convert.ToInt32(q), stock.ItemNumber, Customer);
+                decimal customerFinalTotal = quantityPricing.TotalPrice + sandingTotal;
+
+
+                var returnData = new CutPieceSandPricing
+                    {
+                        TotalCustomerCostPerPiece = customerFinalTotal / Convert.ToInt32(q),
+                        TotalCustomerCostTimesQuantity = customerFinalTotal,
+                        StockTotal = quantityPricing.TotalPrice,
+                        RebateTotal = 0.00M,
+                        CutCostTotal = 0.00M,
+                        SandingTotal = sandingTotal,
+                        Quantity = Convert.ToInt32(q),
+                        PDF = null,
+                        StockUsed = finalUsedStocks,
+                        DiscountPercentage = quantityPricing.DiscountPercentage
+                    };
+                cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+            }
+            cutPieceSandQuotes.Kerf = 0.00M;
+            cutPieceSandQuotes.Length = 0.00M;
+            cutPieceSandQuotes.LengthMinus = 1.00M;
+            cutPieceSandQuotes.LengthPlus = 1.00M;
+            cutPieceSandQuotes.Width = 0.00M;
+            cutPieceSandQuotes.WidthMinus = 1.00M;
+            cutPieceSandQuotes.WidthPlus = 1.00M;
+
+            CutPieceSandQuote cut = new CutPieceSandQuote();
+            cut = cutPieceSandQuotes;
+            ResetOptions();
+            isLoading = false;
+            await CutPieceSandOnAdd.InvokeAsync(cut);
+        }
+
+    }
+
+    private async Task ProcessMaskingOnlyChange(string connectionId)
+    {
+        Sanding sand = new Sanding();
+        LengthWidth lw = new LengthWidth();
+        List<ItemAttributes> stocks = new List<ItemAttributes>();
+        LengthWidth stocksize;
+
+        cutPieceSandQuotes.CustomerMaterialOnly = CustomerMaterialOnly;
+        cutPieceSandQuotes.CustomMaterialOnly = CustomMaterialOnly;
+        cutPieceSandQuotes.MaskingOnly = isMaskingOnly;
+
+        var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        if (quantities.Length > 5)
+        {
+            string alertMessage = "Please reduce quantity calculations to 5 or less.";
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            isLoading = false;
+            return;
+        }
+
+        if (CustomerMaterialOnly || CustomMaterialOnly)
+        {
+
+            cutPieceSandQuotes.SandingOnly = false;
+            cutPieceSandQuotes.MaskingOnly = true;
+            stocksize = new LengthWidth
+                {
+                    Length = Convert.ToInt32(SheetLength),
+                    Width = Convert.ToInt32(SheetWidth)
+                };
+            stocks = new List<ItemAttributes>
+                {
+                    new ItemAttributes(Guid.NewGuid().ToString())
+                    {
+                        LengthIn = stocksize.Length.ToString(),
+                        WidthIn = stocksize.Width.ToString(),
+                        Thicknesses = SheetThickness.ToString(),
+                        NEMAGrade = cutPieceSandQuotes.Grade,
+                        Color = cutPieceSandQuotes.Color
+                    }
+                };
+            cutPieceSandQuotes.Size = string.Concat(stocksize.Length.ToString(), "x", stocksize.Width.ToString());
+
+            foreach (var q in quantities)
+            {
+                if (cutPieceSandQuotes.MaskingSides > 0)
+                {
+                    if (cutPieceSandQuotes.MaskingSides == 1)
+                    {
+                        maskingTotal = Convert.ToInt32(q) * MaskingPriceOneSides;
+                    }
+                    else if (cutPieceSandQuotes.MaskingSides == 2)
+                    {
+                        maskingTotal = Convert.ToInt32(q) * MaskingPriceTwoSides;
+                    }
+                }
+                else
+                {
+                    string alertMessage = "Masking Sides must be greater than 0.";
+                    await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                    isLoading = false;
+                    return;
+                }
+                var stock = stocks.FirstOrDefault();
+                var finalUsedStock = new FinalUsedStock
+                    {
+                        StockSku = stock.ItemNumber,
+                        Length = Convert.ToInt32(stock.LengthIn),
+                        Width = Convert.ToInt32(stock.WidthIn),
+                        StockQty = Convert.ToInt32(q)
+                    };
+                var finalUsedStocks = new List<FinalUsedStock>();
+                finalUsedStocks.Add(finalUsedStock);
+
+                QuantityPricing quantityPricing;
+                decimal customerFinalTotal;
+
+                if (CustomerMaterialOnly)
+                {
+                    customerFinalTotal = maskingTotal;
+                    quantityPricing = new QuantityPricing(0, 0);
+
+                }
+                else
+                {
+                    quantityPricing = new QuantityPricing(Convert.ToInt32(q), CustomerPrice);
+                    customerFinalTotal = quantityPricing.TotalPrice + maskingTotal;
+                }
+                decimal stockTotalPricing = quantityPricing.TotalPrice;
+                if (stockTotalPricing <= 0)
+                {
+                    stockTotalPricing = customerFinalTotal;
+                }
+
+                // if(CustomerMaterialOnly)
+                // {
+                //     cutPieceSandQuotes.Grade = "NA";
+
+                // }
+                // else
+                // {
+                //     cutPieceSandQuotes.Grade = "NA";
+
+                // }
+                cutPieceSandQuotes.Thickness = SheetThickness;
+                // cutPieceSandQuotes.Color = "NA";
+
+
+                var returnData = new CutPieceSandPricing
+                    {
+                        TotalCustomerCostPerPiece = customerFinalTotal / Convert.ToInt32(q),
+                        TotalCustomerCostTimesQuantity = customerFinalTotal,
+                        StockTotal = stockTotalPricing,
+                        RebateTotal = 0.00M,
+                        CutCostTotal = 0.00M,
+                        MaskingTotal = maskingTotal,
+                        Quantity = Convert.ToInt32(q),
+                        PDF = null,
+                        StockUsed = finalUsedStocks,
+                        DiscountPercentage = quantityPricing.DiscountPercentage
+                    };
+                cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+            }
+            cutPieceSandQuotes.Kerf = 0.00M;
+            cutPieceSandQuotes.Length = 0.00M;
+            cutPieceSandQuotes.LengthMinus = 0.00M;
+            cutPieceSandQuotes.LengthPlus = 0.00M;
+            cutPieceSandQuotes.Width = 0.00M;
+            cutPieceSandQuotes.WidthMinus = 0.00M;
+            cutPieceSandQuotes.WidthPlus = 0.00M;
+
+            CutPieceSandQuote cut = new CutPieceSandQuote();
+            cut = cutPieceSandQuotes;
+            ResetOptions();
+            isLoading = false;
+            await CutPieceSandOnAdd.InvokeAsync(cut);
+
+        }
+        else
+        {
+
+
+            cutPieceSandQuotes.SandingOnly = false;
+            cutPieceSandQuotes.MaskingOnly = true;
+
+            stocksize = lw.GetLengthWidthFromCombinedSize(selectedSize);
+
+            stocks = BCItemAttributes
+            .Where(x => x.NEMAGrade == selectedGrade
+                && x.Thicknesses == selectedThickness
+                && Convert.ToInt32(x.LengthIn) == stocksize.Length
+                && Convert.ToInt32(x.WidthIn) == stocksize.Width
+                && x.Color == selectedColor)
+                .ToList();
+
+            cutPieceSandQuotes.Size = selectedSize;
+
+
+            foreach (var q in quantities)
+            {
+                if (cutPieceSandQuotes.MaskingSides > 0)
+                {
+                    if (cutPieceSandQuotes.MaskingSides == 1)
+                    {
+                        maskingTotal = Convert.ToInt32(q) * MaskingPriceOneSides;
+                    }
+                    else if (cutPieceSandQuotes.MaskingSides == 2)
+                    {
+                        maskingTotal = Convert.ToInt32(q) * MaskingPriceTwoSides;
+                    }
+                }
+                else
+                {
+                    string alertMessage = "Sanded Thickness is less than or equal to Thickness.";
+                    await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                    isLoading = false;
+                    return;
+                }
+                var stock = stocks.FirstOrDefault();
+                var finalUsedStock = new FinalUsedStock
+                    {
+                        StockSku = stock.ItemNumber,
+                        Length = Convert.ToInt32(stock.LengthIn),
+                        Width = Convert.ToInt32(stock.WidthIn),
+                        StockQty = Convert.ToInt32(q)
+                    };
+                var finalUsedStocks = new List<FinalUsedStock>();
+                finalUsedStocks.Add(finalUsedStock);
+
+                var quantityPricing = await bCItemTransformation.CalculatePricingForQuantitySimple(Convert.ToInt32(q), stock.ItemNumber, Customer);
+                decimal customerFinalTotal = quantityPricing.TotalPrice + maskingTotal;
+
+
+                var returnData = new CutPieceSandPricing
+                    {
+                        TotalCustomerCostPerPiece = customerFinalTotal / Convert.ToInt32(q),
+                        TotalCustomerCostTimesQuantity = customerFinalTotal,
+                        StockTotal = quantityPricing.TotalPrice,
+                        RebateTotal = 0.00M,
+                        CutCostTotal = 0.00M,
+                        MaskingTotal = maskingTotal,
+                        Quantity = Convert.ToInt32(q),
+                        PDF = null,
+                        StockUsed = finalUsedStocks,
+                        DiscountPercentage = quantityPricing.DiscountPercentage
+                    };
+                cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+            }
+            cutPieceSandQuotes.Kerf = 0.00M;
+            cutPieceSandQuotes.Length = 0.00M;
+            cutPieceSandQuotes.LengthMinus = 0.00M;
+            cutPieceSandQuotes.LengthPlus = 0.00M;
+            cutPieceSandQuotes.Width = 0.00M;
+            cutPieceSandQuotes.WidthMinus = 0.00M;
+            cutPieceSandQuotes.WidthPlus = 0.00M;
+
+            CutPieceSandQuote cut = new CutPieceSandQuote();
+            cut = cutPieceSandQuotes;
+            ResetOptions();
+            isLoading = false;
+            await CutPieceSandOnAdd.InvokeAsync(cut);
+        }
+
+    }
+
+
+
+    private async Task AddToQuote()
+    {
+        isLoading = true;
+        cutPieceSandQuotes.Kerf = Kerf;
+        cutPieceSandQuotes.CustomerMaterialOnly = CustomerMaterialOnly;
+        cutPieceSandQuotes.CustomMaterialOnly = CustomMaterialOnly;
+        var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+        cutPieceSandQuotes.GlossSandRemovalOnly = removeGlossOnly;
+
+        var error = await ErrorHandling(isSandingOnly, isMaskingOnly, CustomMaterialOnly);
+        if (error)
+        {
+            isLoading = false;
+            return;
+        }
+        if (isSandingOnly)
+        {
+            await ProcessSandingOnlyChange(connectionId);
+        }
+        else if (isMaskingOnly)
+        {
+            await ProcessMaskingOnlyChange(connectionId);
+
+        }
+        else
+        {
+            if (CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                Kerf = 0.2M;
+                await AddToQuoteCustomerMaterial(connectionId);
+            }
+            else
+            {
+                try
+                {
+
+                    if (cutPieceSandQuotes.Thickness < cutPieceSandQuotes.SandedThickness)
+                    {
+                        string alertMessage = "Sanded Thickness is less than or equal to Thickness.";
+                        await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                        isLoading = false;
+                        return;
+                    }
+                    Sanding sand = new Sanding();
+
+                    cutPieceSandQuotes.SandingOnly = false;
+                    decimal widthValue = (cutPieceSandQuotes.Width - cutPieceSandQuotes.WidthMinus) + 0.010M;
+                    decimal lengthValue = (cutPieceSandQuotes.Length - cutPieceSandQuotes.LengthMinus) + 0.010M;
+                    decimal perPieceWeight = 0;
+
+                    List<ItemAttributes> stocks = new List<ItemAttributes>();
+                    if (selectedSize == "Normal Stocked Sizes")
+                    {
+                        // stocks = BCItemAttributes
+                        // .Where(x => x.NEMAGrade == selectedGrade
+                        //  && x.Thicknesses == selectedThickness
+                        //  && x.Color == selectedColor)
+                        //  .ToList();
+                        var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48", "48x36", "48x96" };
+                        // Define the desired sizes
+
+                        // Filter the items based on the given criteria
+                        stocks = BCItemAttributes
+                            .Where(x => x.NEMAGrade == selectedGrade
+                                     && x.Thicknesses == selectedThickness
+                                     && x.Color == selectedColor)
+                            .ToList();
+
+                        // Collect the sizes as strings
+                        var sizes = stocks
+                            .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+                            .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Length x Width" string
+                            .Where(size => desiredSizes.Contains(size)) // Filter to only desired sizes
+                            .Distinct() // Remove duplicates
+                            .ToList();
+
+                        // Check if only "48x48" exists
+                        bool only48x48Exists = sizes.Contains("48x48") && sizes.Count == 1;
+
+                        // Remove "48x48" if any other sizes are present
+                        if (!only48x48Exists)
+                        {
+                            stocks = stocks
+                            .Where(item => !(item.LengthIn == "48" && item.WidthIn == "48"))
+                            .ToList();
+                        }
+
+                        // Optionally order the sizes
+                        sizes = sizes.OrderBy(size => size).ToList();
+
+
+                    }
+                    else
+                    {
+                        LengthWidth lw = new LengthWidth();
+                        var stocksize = lw.GetLengthWidthFromCombinedSize(selectedSize);
+                        if (!string.IsNullOrEmpty(ParentSKU))
+                        {
+                            stocks = BCItemAttributes.Where(x => x.ItemNumber == ParentSKU).ToList();
+                        }
+                        if (stocks.Count <= 0)
+                        {
+                            stocks = BCItemAttributes
+                            .Where(x => x.NEMAGrade == selectedGrade
+                                && x.Thicknesses == selectedThickness
+                                && Convert.ToInt32(x.LengthIn) == stocksize.Length
+                                && Convert.ToInt32(x.WidthIn) == stocksize.Width
+                                && x.Color == selectedColor)
+                                .ToList();
+                        }
+                    }
+                    cutPieceSandQuotes.Size = selectedSize;
+                    var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (quantities.Length > 5)
+                    {
+                        string alertMessage = "Please reduce quantity calculations to 5 or less.";
+                        await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                        isLoading = false;
+                        return;
+                    }
+                    List<IdealYieldCalculation> IdealYeildFinalStockUsed = new List<IdealYieldCalculation>();
+                    foreach (var q in quantities)
+                    {
+                        var cutPiece = new CutPiece
+                            {
+                                Width = widthValue,
+                                Length = lengthValue,
+                                Quantity = Convert.ToInt32(q),
+                                Thickness = Convert.ToDecimal(cutPieceSandQuotes.Thickness),
+                                Color = cutPieceSandQuotes.Color,
+                                ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                                TolerancePlusWidth = cutPieceSandQuotes.WidthPlus,
+                                ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                                TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                                MaterialSelected = cutPieceSandQuotes.Grade
+                            };
+
+                        //check item and stock fit
+                        var checkFit = helpers.CheckFit(stocks, lengthValue, widthValue);
+                        if (!checkFit)
+                        {
+                            string alertMessage = "Item does not fit in stock";
+                            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                            isLoading = false;
+                            return;
+                        }
+
+                        string i = string.Format("{0}/{1},{2}", cutPiece.MaterialSelected, cutPiece.Thickness, cutPiece.Color);
+
+                        var total = await p.GetPricing(Customer, stocks, Convert.ToInt32(q), cutPieceSandQuotes.LengthMinus, cutPieceSandQuotes.LengthPlus, cutPieceSandQuotes.WidthMinus, cutPieceSandQuotes.WidthPlus, Kerf);
+                        if (total.Count == 0)
+                        {
+                            string alertMessage = "No pricing found for the selected item.";
+                            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                            isLoading = false;
+                            return;
+                        }
+                        if (total.Where(x => x.StockPrice == 0).Any())
+                        {
+                            total = total.Where(x => x.StockPrice > 0).ToList();
+                            if (total.Count == 0)
+                            {
+                                string alertMessage = "No pricing found for one or more of the stocks selected. Make sure all stocks have pricing or customer is not BLOCKED in BC.";
+                                await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                                isLoading = false;
+                                return;
+                            }
+
+                        }
+                        //good
+                        var rs = await optimizations.CutOptimization(cutPiece, Convert.ToDouble(Kerf), total, connectionId);
+
+                        //test code
+                        OptimizationCalculation oc = new OptimizationCalculation();
+                        var rsCustom = await oc.CutOptimization(cutPiece, Convert.ToDouble(Kerf), total);
+                        //end test code
+
+
+                        if (cutPieceSandQuotes.SandedThickness > 0)
+                        {
+                            decimal sandedToleranceMinus = 0M;
+
+                            sandingTotal = sand.SheetSand(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, rs.Stock);
+                            if (sandingTotal == 0 && removeGlossOnly)
+                            {
+                                sandingTotal = 60;
+                                sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                            }
+                        }
+
+
+                        decimal cutCostTotal = await costing.CostPerCut(total, rs);
+
+                        var pdf = rs.File;
+
+                        var customerResult = await _Authentication.GetCustomerByNo(Customer);
+
+                        var pricingData = await Task.Run(() => p.GetCutPricing(rs, Customer, Convert.ToDecimal(cutPiece.Thickness), i, total, customerResult));
+
+                        var offcut = await optimizations.GetOffcutData(rs, pricingData);
+
+                        var finalpricing = p.AddRebateCalculation(pricingData, offcut);
+
+                        var pricingResponse = finalpricing.Where(x => x.QuantityUsed > 0).ToList();
+                        var rebate = offcut;
+                        //var stockid = rs.Metadata.UsedStockTally.Stock;
+                        //var stockqty = rs.Metadata.UsedStockTally.Sum(x => x.Qty);
+                        var stockused = rs.Stock.Where(x => x.Used == true).ToList();
+
+                        var totalRebate = offcut.Select(x => x.TotalOffcutValue).Sum();
+                        var totalStockCost = pricingResponse.Select(x => x.MinUsablePrice).Sum();
+
+                        decimal stockTotal = 0;
+                        foreach (var stock in pricingResponse)
+                        {
+                            var tempTotal = stock.MinUsablePrice * stock.QuantityUsed;
+                            stockTotal = stockTotal + tempTotal;
+                        }
+
+
+
+
+                        var groupedStocks = stockused
+                           .Where(s => s.L.HasValue && s.W.HasValue && s.T.HasValue) // Ensure L and W have values
+                           .GroupBy(s => new { L = s.L.Value, W = s.W.Value, T = s.T.Value, N = s.Name }) // Group by dimensions LxW
+                           .Select(group => new
+                           {
+                               Dimensions = group.Key,
+                               Quantity = group.Sum(item => GetQuantityFromStack(item.Stack)),
+                               Width = group.Key.W,
+                               Length = group.Key.L,
+                               Thickness = group.Key.T,
+                               Name = group.Key.N
+                           })
+                           .ToList();
+
+                        var totalstockscount = groupedStocks.Sum(x => x.Quantity);
+                        if (cutPieceSandQuotes.MaskingSides > 0)
+                        {
+                            if (cutPieceSandQuotes.MaskingSides == 1)
+                            {
+                                maskingTotal = totalstockscount * MaskingPriceOneSides;
+                            }
+                            else if (cutPieceSandQuotes.MaskingSides == 2)
+                            {
+                                maskingTotal = totalstockscount * MaskingPriceTwoSides;
+                            }
+                        }
+                        if (sandingTotal == 0 && removeGlossOnly)
+                        {
+                            sandingTotal = 60;
+                            sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                        }
+                        decimal customerFinalTotal = ((stockTotal - totalRebate) + cutCostTotal + sandingTotal + maskingTotal);
+                        customerFinalTotal = Math.Round(customerFinalTotal / Convert.ToDecimal(q), 2);
+
+
+
+
+                        var returnData = new CutPieceSandPricing
+                            {
+                                TotalCustomerCostPerPiece = customerFinalTotal,
+                                TotalCustomerCostTimesQuantity = customerFinalTotal * Convert.ToInt32(q),
+                                StockTotal = stockTotal,
+                                RebateTotal = totalRebate,
+                                CutCostTotal = cutCostTotal,
+                                MaskingTotal = maskingTotal,
+                                SandingTotal = sandingTotal,
+                                Quantity = Convert.ToInt32(q),
+                                PDF = rs.File,
+                                StockUsed = groupedStocks.Select(x => new FinalUsedStock
+                                {
+                                    StockSku = x.Name,
+                                    Length = x.Length,
+                                    Width = x.Width,
+                                    StockQty = x.Quantity,
+                                    IdealYield = ComputeIdealYield(x.Length, x.Width, lengthValue, widthValue, Convert.ToDecimal(Kerf))
+                                }).ToList()
+                            };
+
+                        decimal totalWeight = 0m;
+                        decimal perPieceWeightCalc = 0m;
+                        if (perPieceWeight <= 0)
+                        {
+                            foreach (var group in returnData.StockUsed)
+                            {
+                                var stockSku = group.StockSku.Replace("-", "/");
+                                var currentStock = stocks.Where(x => x.ItemNumber == stockSku).FirstOrDefault();
+                                decimal stockWeight = currentStock.NetWeight.Value;
+
+                                // Calculate total weight and per-piece weight
+                                decimal sheetTotalWeight = CalculateWeight(
+                                    group.StockQty,
+                                    stockWeight,
+                                    Convert.ToDecimal(currentStock.WidthIn),
+                                    Convert.ToDecimal(currentStock.LengthIn),
+                                    cutPiece.Width,
+                                    cutPiece.Length,
+                                    group.IdealYield
+                                );
+
+                                // Accumulate total weight
+                                totalWeight += sheetTotalWeight;
+
+                                // Calculate per-piece weight (same for all sheets of this stock)
+                                if (group.IdealYield > 0)
+                                {
+                                    decimal partArea = cutPiece.Width * cutPiece.Length;
+                                    decimal density = stockWeight / (group.IdealYield * partArea);
+                                    perPieceWeightCalc = cutPiece.Width * cutPiece.Length * density;
+                                }
+                            }
+                            perPieceWeight = perPieceWeightCalc;
+                            perPieceWeight = Math.Round(perPieceWeightCalc, 2);
+                        }
+                        // Update StockTotal with total weight for requested quantity
+                        var StockTotalWeight = perPieceWeight * Convert.ToInt32(q);
+                        StockTotalWeight = Math.Round(StockTotalWeight, 2);
+
+                        returnData.PerPieceWeight = perPieceWeight;
+                        returnData.TotalQuantityWeight = StockTotalWeight;
+                        cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+                        sandingTotal = 0;
+
+                        // Filter and select the appropriate stock
+                        FinalUsedStock selectedStock = null;
+
+                        foreach (var stock in returnData.StockUsed)
+                        {
+                            if (stock.Length == 96.25 && stock.Width == 48.25)
+                            {
+                                selectedStock = stock;
+                                break;
+                            }
+                        }
+
+                        if (selectedStock == null)
+                        {
+                            foreach (var stock in returnData.StockUsed)
+                            {
+                                if (stock.Length == 48.25 && stock.Width == 36.25)
+                                {
+                                    selectedStock = stock;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (selectedStock == null)
+                        {
+                            foreach (var stock in returnData.StockUsed)
+                            {
+                                if (stock.Length == 48.25 && stock.Width == 48.25)
+                                {
+                                    selectedStock = stock;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Add the selected stock to IdealYeildFinalStockUsed if it meets the criteria
+                        if (selectedStock != null)
+                        {
+                            IdealYeildFinalStockUsed.Add(new IdealYieldCalculation
+                                {
+                                    Quantity = selectedStock.IdealYield,
+                                    StockUsed = new List<FinalUsedStock> { selectedStock }
+                                });
+                        }
+
+                    }
+
+                    IdealYeildFinalStockUsed = IdealYeildFinalStockUsed
+                    .GroupBy(x => new { x.Quantity, StockSku = x.StockUsed.First().StockSku })
+                    .Select(g => g.First())
+                    .ToList();
+
+                    //calculate ideal yield
+                    foreach (var iy in IdealYeildFinalStockUsed)
+                    {
+                        var cutPiece = new CutPiece
+                            {
+                                Width = widthValue,
+                                Length = lengthValue,
+                                Quantity = Convert.ToInt32(iy.Quantity),
+                                Thickness = Convert.ToDecimal(cutPieceSandQuotes.Thickness),
+                                Color = cutPieceSandQuotes.Color,
+                                ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                                TolerancePlusWidth = cutPieceSandQuotes.WidthPlus,
+                                ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                                TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                                MaterialSelected = cutPieceSandQuotes.Grade
+                            };
+
+                        var allStocks = iy.StockUsed;
+                        var selectedStock = allStocks.Where(x => x.Length == 96.25 && x.Width == 48.25).FirstOrDefault();
+                        if (selectedStock == null)
+                        {
+                            selectedStock = allStocks.Where(x => x.Length == 48.25 && x.Width == 36.25).FirstOrDefault();
+                        }
+                        if (selectedStock == null)
+                        {
+                            selectedStock = allStocks.Where(x => x.Length == 48.25 && x.Width == 48.25).FirstOrDefault();
+                        }
+                        var usedStock = stocks.Where(x => x.ItemNumber.Replace("/", "-") == selectedStock.StockSku).ToList();
+
+                        string i = string.Format("{0}/{1},{2}", cutPiece.MaterialSelected, cutPiece.Thickness, cutPiece.Color);
+
+                        var total = await p.GetPricing(Customer, usedStock, Convert.ToInt32(iy.Quantity), cutPieceSandQuotes.LengthMinus, cutPieceSandQuotes.LengthPlus, cutPieceSandQuotes.WidthMinus, cutPieceSandQuotes.WidthPlus, Kerf);
+                        var rs = new Models.SmartCut.SmartResponse();
+                        if (cutPiece.Quantity > 0)
+                        {
+                            rs = await optimizations.CutOptimization(cutPiece, Convert.ToDouble(Kerf), total, connectionId);
+
+
+
+                            if (cutPieceSandQuotes.SandedThickness > 0)
+                            {
+                                decimal sandedToleranceMinus = 0M;
+
+                                sandingTotal = sand.SheetSand(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, rs.Stock);
+                                if (sandingTotal > 0)
+                                {
+                                    sandingTotalPerPiece = sandingTotal / Convert.ToInt32(iy.Quantity);
+                                }
+                            }
+                            if (sandingTotal == 0 && removeGlossOnly)
+                            {
+                                sandingTotal = 60;
+                                sandingTotalPerPiece = sandingTotal / Convert.ToInt32(iy.Quantity);
+                            }
+
+                            decimal cutCostTotal = await costing.CostPerCut(total, rs);
+
+                            var pdf = rs.File;
+
+                            var customerResult = await _Authentication.GetCustomerByNo(Customer);
+
+                            var pricingData = await Task.Run(() => p.GetCutPricing(rs, Customer, Convert.ToDecimal(cutPiece.Thickness), i, total, customerResult));
+
+                            var offcut = await optimizations.GetOffcutData(rs, pricingData);
+
+                            var finalpricing = p.AddRebateCalculation(pricingData, offcut);
+
+                            var pricingResponse = finalpricing.Where(x => x.QuantityUsed > 0).ToList();
+                            var rebate = offcut;
+                            //var stockid = rs.Metadata.UsedStockTally.Stock;
+                            //var stockqty = rs.Metadata.UsedStockTally.Sum(x => x.Qty);
+                            var stockused = rs.Stock.Where(x => x.Used == true).ToList();
+
+                            var totalRebate = offcut.Select(x => x.TotalOffcutValue).Sum();
+                            var totalStockCost = pricingResponse.Select(x => x.MinUsablePrice).Sum();
+
+                            decimal stockTotal = 0;
+                            foreach (var stock in pricingResponse)
+                            {
+                                var tempTotal = stock.MinUsablePrice * stock.QuantityUsed;
+                                stockTotal = stockTotal + tempTotal;
+                            }
+
+
+
+                            var groupedStocks = stockused
+                               .Where(s => s.L.HasValue && s.W.HasValue && s.T.HasValue) // Ensure L and W have values
+                               .GroupBy(s => new { L = s.L.Value, W = s.W.Value, T = s.T.Value, N = s.Name }) // Group by dimensions LxW
+                               .Select(group => new
+                               {
+                                   Dimensions = group.Key,
+                                   Quantity = group.Sum(item => GetQuantityFromStack(item.Stack)),
+                                   Width = group.Key.W,
+                                   Length = group.Key.L,
+                                   Thickness = group.Key.T,
+                                   Name = group.Key.N
+                               })
+                               .ToList();
+
+                            var totalstockscount = groupedStocks.Sum(x => x.Quantity);
+                            if (cutPieceSandQuotes.MaskingSides > 0)
+                            {
+                                if (cutPieceSandQuotes.MaskingSides == 1)
+                                {
+                                    maskingTotal = totalstockscount * MaskingPriceOneSides;
+                                }
+                                else if (cutPieceSandQuotes.MaskingSides == 2)
+                                {
+                                    maskingTotal = totalstockscount * MaskingPriceTwoSides;
+                                }
+                            }
+
+                            decimal customerFinalTotal = ((stockTotal - totalRebate) + cutCostTotal + sandingTotal + maskingTotal);
+                            customerFinalTotal = Math.Round(customerFinalTotal / Convert.ToDecimal(iy.Quantity), 2);
+
+                            var returnData = new CutPieceSandPricing
+                                {
+                                    TotalCustomerCostPerPiece = customerFinalTotal,
+                                    TotalCustomerCostTimesQuantity = customerFinalTotal * Convert.ToInt32(iy.Quantity),
+                                    StockTotal = stockTotal,
+                                    RebateTotal = totalRebate,
+                                    CutCostTotal = cutCostTotal,
+                                    SandingTotal = sandingTotal,
+                                    MaskingTotal = maskingTotal,
+                                    Quantity = Convert.ToInt32(iy.Quantity),
+                                    PDF = rs.File,
+                                    StockUsed = groupedStocks.Select(x => new FinalUsedStock
+                                    {
+                                        StockSku = x.Name,
+                                        Length = x.Length,
+                                        Width = x.Width,
+                                        StockQty = x.Quantity,
+                                        IdealYield = 0,
+                                        IdealYieldStock = true
+                                    }).ToList(),
+                                    IdealYieldStock = true
+                                };
+                            // Update StockTotal with total weight for requested quantity
+                            var StockTotalWeight = perPieceWeight * Convert.ToInt32(iy.Quantity);
+                            StockTotalWeight = Math.Round(StockTotalWeight, 2);
+                            returnData.PerPieceWeight = perPieceWeight;
+                            returnData.TotalQuantityWeight = StockTotalWeight;
+                            cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+                        }
+                    }
+
+                    CutPieceSandQuote cut = new CutPieceSandQuote();
+                    cut = cutPieceSandQuotes;
+
+                    // Assuming CutPieceSandQuantityPricing is a list of objects with Quantity, TotalCustomerCostPerPiece, and TotalCustomerCostTimesQuantity
+                    var cutPieces = cut.CutPieceSandQuantityPricing;
+
+                    // Sort the list by quantity to ensure proper comparison order
+                    cutPieces.Sort((a, b) => a.Quantity.CompareTo(b.Quantity));
+
+                    // Initialize the lowest price encountered so far with a very high value
+                    decimal lowestPriceSoFar = decimal.MaxValue;
+
+                    // Iterate through the sorted list
+                    foreach (var c in cutPieces)
+                    {
+                        // Check if the current price is higher than the lowest price encountered so far
+                        if (c.TotalCustomerCostPerPiece > lowestPriceSoFar)
+                        {
+                            // If yes, set the current price to the lowest price
+                            c.TotalCustomerCostPerPiece = lowestPriceSoFar;
+                        }
+                        else
+                        {
+                            // If no, update the lowest price so far
+                            lowestPriceSoFar = c.TotalCustomerCostPerPiece;
+                        }
+
+                        // Update the total cost times quantity
+                        c.TotalCustomerCostTimesQuantity = c.TotalCustomerCostPerPiece * c.Quantity;
+                    }
+
+
+                    cut.CutPieceSandQuantityPricing = cutPieces;
+
+                    ResetOptions();
+                    isLoading = false;
+                    await CutPieceSandOnAdd.InvokeAsync(cut);
+
+
+
+
+                }
+                catch (Exception ex)
+                {
+                    isLoading = false;
+                    await JSRuntime.InvokeVoidAsync("alert", ex.Message + "Please try again in a few minutes.");
+                }
+            }
+        }
+
+    }
+
+
+    private async Task AddToQuoteCustomerMaterial(string connectionId)
+    {
+        selectedColor = cutPieceSandQuotes.Color;
+        selectedGrade = cutPieceSandQuotes.Grade;
+        cutPieceSandQuotes.Thickness = SheetThickness;
+        if (CustomerMaterialOnly)
+        {
+            CustomerPrice = 150;
+        }
+
+        try
+        {
+            if (CustomMaterialOnly && cutPieceSandQuotes.Length == 0 && cutPieceSandQuotes.Width == 0)
+            {
+                List<ItemAttributes> stocks = new List<ItemAttributes>();
+
+                LengthWidth lw = new LengthWidth();
+                selectedSize = string.Concat(SheetLength, "x", SheetWidth);
+
+                stocks = new List<ItemAttributes>
+                        {
+                            new ItemAttributes(Guid.NewGuid().ToString())
+                            {
+                                LengthIn = SheetLength.ToString(),
+                                WidthIn = SheetWidth.ToString(),
+                                Thicknesses = SheetThickness.ToString(),
+                                NEMAGrade = cutPieceSandQuotes.Grade,
+                                Color = cutPieceSandQuotes.Color
+                            }
+                        };
+
+                cutPieceSandQuotes.Size = selectedSize;
+                var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (quantities.Length > 5)
+                {
+                    string alertMessage = "Please reduce quantity calculations to 5 or less.";
+                    await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                    isLoading = false;
+                    return;
+                }
+                List<IdealYieldCalculation> IdealYeildFinalStockUsed = new List<IdealYieldCalculation>();
+
+                foreach (var q in quantities)
+                {
+                    var cutPiece = new CutPiece
+                        {
+                            Width = 0,
+                            Length = 0,
+                            Quantity = Convert.ToInt32(q),
+                            Thickness = Convert.ToDecimal(cutPieceSandQuotes.Thickness),
+                            Color = cutPieceSandQuotes.Color,
+                            ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                            TolerancePlusWidth = cutPieceSandQuotes.WidthPlus,
+                            ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                            TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                            MaterialSelected = cutPieceSandQuotes.Grade
+                        };
+
+
+
+                    string i = string.Format("{0}-{1}-{2}", cutPiece.MaterialSelected, cutPiece.Thickness, cutPiece.Color);
+
+                    string description = "Custom Material";
+
+                    var total = new List<PricedItem>
+                        {
+                                                          new PricedItem
+                    {
+                        No = i,
+                        SafeNo = i,
+                        Grade =  cutPieceSandQuotes.Grade,
+                        Size = string.Format("{0}x{1}", SheetLength, SheetWidth),
+                        Thickness = Convert.ToDouble(cutPieceSandQuotes.Thickness),
+                        Color = cutPieceSandQuotes.Color,
+                        Kerf = Convert.ToDouble(Kerf),
+                        Length = Convert.ToDouble(SheetLength) + 0.25,
+                        Width = Convert.ToDouble(SheetWidth) + 0.25,
+                        StockPrice = (decimal)CustomerPrice,
+                        Description = "Custom Material",
+                        MinUsablePrice = (decimal)CustomerPrice,
+                        InventoryCtrl = 0,
+                        Customer = Customer,
+                        PriceGroup = "NA",
+                        ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                        TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                        ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                        TolerancePlusWidth = cutPieceSandQuotes.WidthPlus
+                    }
+                        };
+
+                    var returnData = new CutPieceSandPricing();
+                    if (sandingTotal == 0 && removeGlossOnly)
+                    {
+                        sandingTotal = 60;
+                        sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                    }
+                    returnData = new CutPieceSandPricing
+                        {
+                            TotalCustomerCostPerPiece = CustomerPrice,
+                            TotalCustomerCostTimesQuantity = CustomerPrice * Convert.ToInt32(q),
+                            StockTotal = CustomerPrice * Convert.ToInt32(q),
+                            RebateTotal = 0,
+                            CutCostTotal = 0,
+                            SandingTotal = sandingTotal,
+                            Quantity = Convert.ToInt32(q),
+                            PDF = null,
+                            StockUsed = new List<FinalUsedStock>
+                            {
+                                new FinalUsedStock
+                                {
+                                    StockSku = i,
+                                    Length = (double)SheetLength,
+                                    Width = (double)SheetWidth,
+                                    StockQty = Convert.ToInt32(q),
+                                    IdealYield = 0
+                                }
+                            }
+                        };
+
+                    cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+
+                }
+                CutPieceSandQuote cut = new CutPieceSandQuote();
+                cut = cutPieceSandQuotes;
+                await CutPieceSandOnAdd.InvokeAsync(cut);
+                ResetOptions();
+                isLoading = false;
+            }
+            else
+            {
+
+
+
+                if (cutPieceSandQuotes.Thickness < cutPieceSandQuotes.SandedThickness)
+                {
+                    string alertMessage = "Sanded Thickness is less than or equal to Thickness.";
+                    await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                    isLoading = false;
+                    return;
+                }
+                Sanding sand = new Sanding();
+
+                cutPieceSandQuotes.SandingOnly = false;
+                decimal widthValue = (cutPieceSandQuotes.Width - cutPieceSandQuotes.WidthMinus) + 0.010M;
+                decimal lengthValue = (cutPieceSandQuotes.Length - cutPieceSandQuotes.LengthMinus) + 0.010M;
+
+                List<ItemAttributes> stocks = new List<ItemAttributes>();
+
+                LengthWidth lw = new LengthWidth();
+                selectedSize = string.Concat(SheetLength, "x", SheetWidth);
+
+                stocks = new List<ItemAttributes>
+                        {
+                            new ItemAttributes(Guid.NewGuid().ToString())
+                            {
+                                LengthIn = SheetLength.ToString(),
+                                WidthIn = SheetWidth.ToString(),
+                                Thicknesses = SheetThickness.ToString(),
+                                NEMAGrade = cutPieceSandQuotes.Grade,
+                                Color = cutPieceSandQuotes.Color
+                            }
+                        };
+                // cutPieceSandQuotes.Grade = "NA";
+                // cutPieceSandQuotes.Color = "NA";
+                cutPieceSandQuotes.Size = selectedSize;
+                var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (quantities.Length > 5)
+                {
+                    string alertMessage = "Please reduce quantity calculations to 5 or less.";
+                    await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                    isLoading = false;
+                    return;
+                }
+                List<IdealYieldCalculation> IdealYeildFinalStockUsed = new List<IdealYieldCalculation>();
+                foreach (var q in quantities)
+                {
+                    var cutPiece = new CutPiece
+                        {
+                            Width = widthValue,
+                            Length = lengthValue,
+                            Quantity = Convert.ToInt32(q),
+                            Thickness = Convert.ToDecimal(cutPieceSandQuotes.Thickness),
+                            Color = cutPieceSandQuotes.Color,
+                            ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                            TolerancePlusWidth = cutPieceSandQuotes.WidthPlus,
+                            ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                            TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                            MaterialSelected = cutPieceSandQuotes.Grade
+                        };
+
+                    //check item and stock fit
+                    var checkFit = helpers.CheckFit(stocks, lengthValue, widthValue);
+                    if (!checkFit)
+                    {
+                        string alertMessage = "Item does not fit in stock";
+                        await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                        isLoading = false;
+                        return;
+                    }
+
+                    string i = string.Format("{0}-{1}-{2}", cutPiece.MaterialSelected, cutPiece.Thickness, cutPiece.Color);
+
+                    string description = "Customer Material";
+                    if (CustomMaterialOnly)
+                    {
+                        description = "Custom Material";
+                    }
+                    var total = new List<PricedItem>
+                        {
+                                                          new PricedItem
+                    {
+                        No = i,
+                        SafeNo = i,
+                        Grade =  cutPieceSandQuotes.Grade,
+                        Size = string.Format("{0}x{1}", SheetLength, SheetWidth),
+                        Thickness = Convert.ToDouble(cutPieceSandQuotes.Thickness),
+                        Color = cutPieceSandQuotes.Color,
+                        Kerf = Convert.ToDouble(Kerf),
+                        Length = Convert.ToDouble(SheetLength) + 0.25,
+                        Width = Convert.ToDouble(SheetWidth) + 0.25,
+                        StockPrice = (decimal)CustomerPrice,
+                        Description = "Customer Material",
+                        MinUsablePrice = (decimal)CustomerPrice,
+                        InventoryCtrl = 0,
+                        Customer = Customer,
+                        PriceGroup = "NA",
+                        ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                        TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                        ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                        TolerancePlusWidth = cutPieceSandQuotes.WidthPlus
+                    }
+                        };
+
+                    var rs = await optimizations.CutOptimization(cutPiece, Convert.ToDouble(Kerf), total, connectionId);
+
+
+
+
+                    if (cutPieceSandQuotes.SandedThickness > 0)
+                    {
+                        decimal sandedToleranceMinus = 0M;
+
+                        sandingTotal = sand.SheetSand(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, rs.Stock);
+                        if (sandingTotal > 0)
+                        {
+                            sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                        }
+                    }
+                    if (sandingTotal == 0 && removeGlossOnly)
+                    {
+                        sandingTotal = 60;
+                        sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                    }
+
+                    decimal cutCostTotal = await costing.CostPerCut(total, rs);
+
+                    var pdf = rs.File;
+
+                    var customerResult = await _Authentication.GetCustomerByNo(Customer);
+
+                    var pricingData = await Task.Run(() => p.GetCutPricing(rs, Customer, Convert.ToDecimal(cutPiece.Thickness), i, total, customerResult));
+
+                    var offcut = await optimizations.GetOffcutData(rs, pricingData);
+
+                    var finalpricing = p.AddRebateCalculation(pricingData, offcut);
+
+                    var pricingResponse = finalpricing.Where(x => x.QuantityUsed > 0).ToList();
+                    var rebate = offcut;
+                    //var stockid = rs.Metadata.UsedStockTally.Stock;
+                    //var stockqty = rs.Metadata.UsedStockTally.Sum(x => x.Qty);
+                    var stockused = rs.Stock.Where(x => x.Used == true).ToList();
+
+                    var totalRebate = offcut.Select(x => x.TotalOffcutValue).Sum();
+                    var totalStockCost = pricingResponse.Select(x => x.MinUsablePrice).Sum();
+
+                    decimal stockTotal = 0;
+
+                    if (CustomMaterialOnly)
+                    {
+                        totalRebate = 0;
+                        int totalStockQtyUsed = 0;
+                        decimal minUsedPrice = 0;
+
+                        foreach (var stock in pricingResponse)
+                        {
+                            totalStockQtyUsed = totalStockQtyUsed + stock.QuantityUsed;
+                            minUsedPrice = stock.MinUsablePrice;
+                        }
+                        if (CustomMinSheetMaterial > 0)
+                        {
+                            if (totalStockQtyUsed < CustomMinSheetMaterial)
+                            {
+                                totalStockQtyUsed = CustomMinSheetMaterial;
+                            }
+                        }
+                        stockTotal = totalStockQtyUsed * minUsedPrice;
+                    }
+                    else
+                    {
+                        foreach (var stock in pricingResponse)
+                        {
+                            var tempTotal = stock.MinUsablePrice * stock.QuantityUsed;
+                            stockTotal = stockTotal + tempTotal;
+                        }
+                    }
+
+
+
+
+
+                    var groupedStocks = stockused
+                       .Where(s => s.L.HasValue && s.W.HasValue && s.T.HasValue) // Ensure L and W have values
+                       .GroupBy(s => new { L = s.L.Value, W = s.W.Value, T = s.T.Value, N = s.Name }) // Group by dimensions LxW
+                       .Select(group => new
+                       {
+                           Dimensions = group.Key,
+                           Quantity = group.Sum(item => GetQuantityFromStack(item.Stack)),
+                           Width = group.Key.W,
+                           Length = group.Key.L,
+                           Thickness = group.Key.T,
+                           Name = group.Key.N
+                       })
+                       .ToList();
+
+                    var totalstockscount = groupedStocks.Sum(x => x.Quantity);
+                    if (cutPieceSandQuotes.MaskingSides > 0)
+                    {
+                        if (cutPieceSandQuotes.MaskingSides == 1)
+                        {
+                            maskingTotal = totalstockscount * MaskingPriceOneSides;
+                        }
+                        else if (cutPieceSandQuotes.MaskingSides == 2)
+                        {
+                            maskingTotal = totalstockscount * MaskingPriceTwoSides;
+                        }
+                    }
+
+                    decimal customerFinalTotal = ((stockTotal - totalRebate) + cutCostTotal + sandingTotal + maskingTotal);
+                    customerFinalTotal = Math.Round(customerFinalTotal / Convert.ToDecimal(q), 2);
+
+                    if (CustomerMaterialOnly)
+                    {
+                        totalRebate = 0;
+                        decimal customerTotal = cutCostTotal + sandingTotal + maskingTotal;
+
+                        if (customerTotal <= 150)
+                        {
+                            customerFinalTotal = 150;
+                        }
+                        else
+                        {
+                            customerFinalTotal = customerTotal;
+                        }
+                    }
+
+                    var returnData = new CutPieceSandPricing();
+                    if (CustomerMaterialOnly)
+                    {
+                        if (sandingTotal == 0 && removeGlossOnly)
+                        {
+                            sandingTotal = 60;
+                            sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                        }
+                        returnData = new CutPieceSandPricing
+                            {
+                                TotalCustomerCostPerPiece = Math.Round(customerFinalTotal / Convert.ToInt32(q), 2),
+                                TotalCustomerCostTimesQuantity = customerFinalTotal,
+                                StockTotal = 0,
+                                RebateTotal = 0,
+                                CutCostTotal = cutCostTotal,
+                                SandingTotal = sandingTotal,
+                                MaskingTotal = maskingTotal,
+                                Quantity = Convert.ToInt32(q),
+                                PDF = rs.File,
+                                StockUsed = groupedStocks.Select(x => new FinalUsedStock
+                                {
+                                    StockSku = x.Name,
+                                    Length = x.Length,
+                                    Width = x.Width,
+                                    StockQty = x.Quantity,
+                                    IdealYield = ComputeIdealYield(x.Length, x.Width, lengthValue, widthValue, Convert.ToDecimal(Kerf)),
+                                }).ToList()
+                            };
+                    }
+                    else
+                    {
+                        if (sandingTotal == 0 && removeGlossOnly)
+                        {
+                            sandingTotal = 60;
+                            sandingTotalPerPiece = sandingTotal / Convert.ToInt32(q);
+                        }
+                        returnData = new CutPieceSandPricing
+                            {
+                                TotalCustomerCostPerPiece = customerFinalTotal,
+                                TotalCustomerCostTimesQuantity = customerFinalTotal * Convert.ToInt32(q),
+                                StockTotal = stockTotal,
+                                RebateTotal = totalRebate,
+                                CutCostTotal = cutCostTotal,
+                                SandingTotal = sandingTotal,
+                                Quantity = Convert.ToInt32(q),
+                                PDF = rs.File,
+                                StockUsed = groupedStocks.Select(x => new FinalUsedStock
+                                {
+                                    StockSku = x.Name,
+                                    Length = x.Length,
+                                    Width = x.Width,
+                                    StockQty = x.Quantity,
+                                    IdealYield = ComputeIdealYield(x.Length, x.Width, lengthValue, widthValue, Convert.ToDecimal(Kerf)),
+                                }).ToList()
+                            };
+                    }
+                    cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+
+                    // Filter and select the appropriate stock
+                    FinalUsedStock selectedStock = null;
+
+                    foreach (var stock in returnData.StockUsed)
+                    {
+                        if (stock.Length == 96.25 && stock.Width == 48.25)
+                        {
+                            selectedStock = stock;
+                            break;
+                        }
+                    }
+
+                    if (selectedStock == null)
+                    {
+                        foreach (var stock in returnData.StockUsed)
+                        {
+                            if (stock.Length == 48.25 && stock.Width == 36.25)
+                            {
+                                selectedStock = stock;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (selectedStock == null)
+                    {
+                        foreach (var stock in returnData.StockUsed)
+                        {
+                            if (stock.Length == 48.25 && stock.Width == 48.25)
+                            {
+                                selectedStock = stock;
+                                break;
+                            }
+                        }
+                    }
+                    if (selectedStock == null)
+                    {
+                        foreach (var stock in returnData.StockUsed)
+                        {
+                            selectedStock = stock;
+                            break;
+                        }
+                    }
+
+                    // Add the selected stock to IdealYeildFinalStockUsed if it meets the criteria
+                    if (selectedStock != null)
+                    {
+                        if (selectedStock.IdealYield > 0)
+                        {
+                            IdealYeildFinalStockUsed.Add(new IdealYieldCalculation
+                                {
+                                    Quantity = selectedStock.IdealYield,
+                                    StockUsed = new List<FinalUsedStock> { selectedStock }
+                                });
+                        }
+
+                    }
+
+                }
+
+                IdealYeildFinalStockUsed = IdealYeildFinalStockUsed
+                .GroupBy(x => new { x.Quantity, StockSku = x.StockUsed.First().StockSku })
+                .Select(g => g.First())
+                .ToList();
+
+                //calculate ideal yield
+                foreach (var iy in IdealYeildFinalStockUsed)
+                {
+                    var cutPiece = new CutPiece
+                        {
+                            Width = widthValue,
+                            Length = lengthValue,
+                            Quantity = Convert.ToInt32(iy.Quantity),
+                            Thickness = Convert.ToDecimal(cutPieceSandQuotes.Thickness),
+                            Color = cutPieceSandQuotes.Color,
+                            ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                            TolerancePlusWidth = cutPieceSandQuotes.WidthPlus,
+                            ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                            TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                            MaterialSelected = cutPieceSandQuotes.Grade
+                        };
+
+                    var allStocks = iy.StockUsed;
+                    var selectedStock = allStocks.Where(x => x.Length == 96.25 && x.Width == 48.25).FirstOrDefault();
+                    if (selectedStock == null)
+                    {
+                        selectedStock = allStocks.Where(x => x.Length == 48.25 && x.Width == 36.25).FirstOrDefault();
+                    }
+                    if (selectedStock == null)
+                    {
+                        selectedStock = allStocks.Where(x => x.Length == 48.25 && x.Width == 48.25).FirstOrDefault();
+                    }
+                    if (selectedStock == null)
+                    {
+                        selectedStock = allStocks.FirstOrDefault();
+                    }
+                    var usedStock = stocks.Where(x => x.ItemNumber.Replace("/", "-") == selectedStock.StockSku).ToList();
+
+                    string i = string.Format("{0}-{1}-{2}", cutPiece.MaterialSelected, cutPiece.Thickness, cutPiece.Color);
+
+                    var total = new List<PricedItem>
+                        {
+                                                          new PricedItem
+                    {
+                        No = i,
+                        SafeNo = i,
+                        Grade =  cutPieceSandQuotes.Grade,
+                        Size = string.Format("{0}x{1}", SheetLength, SheetWidth),
+                        Thickness = Convert.ToDouble(cutPieceSandQuotes.Thickness),
+                        Color = cutPieceSandQuotes.Color,
+                        Kerf = Convert.ToDouble(Kerf),
+                        Length = Convert.ToDouble(SheetLength) + 0.25,
+                        Width = Convert.ToDouble(SheetWidth) + 0.25,
+                        StockPrice = (decimal)CustomerPrice,
+                        Description = "Customer Material",
+                        MinUsablePrice = (decimal)CustomerPrice,
+                        InventoryCtrl = 0,
+                        Customer = Customer,
+                        PriceGroup = "N/A",
+                        ToleranceMinusLength = cutPieceSandQuotes.LengthMinus,
+                        TolerancePlusLength = cutPieceSandQuotes.LengthPlus,
+                        ToleranceMinusWidth = cutPieceSandQuotes.WidthMinus,
+                        TolerancePlusWidth = cutPieceSandQuotes.WidthPlus
+                    }
+                        };
+                    var rs = await optimizations.CutOptimization(cutPiece, Convert.ToDouble(Kerf), total, connectionId);
+
+
+                    if (cutPieceSandQuotes.SandedThickness > 0)
+                    {
+                        decimal sandedToleranceMinus = 0M;
+
+                        sandingTotal = sand.SheetSand(cutPieceSandQuotes.SandedThickness, cutPieceSandQuotes.ThickMinus, rs.Stock);
+                        if (sandingTotal > 0)
+                        {
+                            sandingTotalPerPiece = sandingTotal / Convert.ToInt32(iy.Quantity);
+                        }
+                    }
+                    if (sandingTotal == 0 && removeGlossOnly)
+                    {
+                        sandingTotal = 60;
+                        sandingTotalPerPiece = sandingTotal / Convert.ToInt32(iy.Quantity);
+                    }
+
+                    decimal cutCostTotal = await costing.CostPerCut(total, rs);
+
+                    var pdf = rs.File;
+
+                    var customerResult = await _Authentication.GetCustomerByNo(Customer);
+
+                    var pricingData = await Task.Run(() => p.GetCutPricing(rs, Customer, Convert.ToDecimal(cutPiece.Thickness), i, total, customerResult));
+
+                    var offcut = await optimizations.GetOffcutData(rs, pricingData);
+
+                    var finalpricing = p.AddRebateCalculation(pricingData, offcut);
+
+                    var pricingResponse = finalpricing.Where(x => x.QuantityUsed > 0).ToList();
+                    var rebate = offcut;
+                    //var stockid = rs.Metadata.UsedStockTally.Stock;
+                    // var stockqty = rs.Metadata.UsedStockTally.Sum(x => x.Qty);
+                    var stockused = rs.Stock.Where(x => x.Used == true).ToList();
+
+                    var totalRebate = offcut.Select(x => x.TotalOffcutValue).Sum();
+                    var totalStockCost = pricingResponse.Select(x => x.MinUsablePrice).Sum();
+
+                    decimal stockTotal = 0;
+
+                    if (CustomMaterialOnly)
+                    {
+                        totalRebate = 0;
+                        int totalStockQtyUsed = 0;
+                        decimal minUsedPrice = 0;
+
+                        foreach (var stock in pricingResponse)
+                        {
+                            totalStockQtyUsed = totalStockQtyUsed + stock.QuantityUsed;
+                            minUsedPrice = stock.MinUsablePrice;
+                        }
+                        if (CustomMinSheetMaterial > 0)
+                        {
+                            if (totalStockQtyUsed < CustomMinSheetMaterial)
+                            {
+                                totalStockQtyUsed = CustomMinSheetMaterial;
+                            }
+                        }
+                        stockTotal = totalStockQtyUsed * minUsedPrice;
+                    }
+                    else
+                    {
+                        foreach (var stock in pricingResponse)
+                        {
+                            var tempTotal = stock.MinUsablePrice * stock.QuantityUsed;
+                            stockTotal = stockTotal + tempTotal;
+                        }
+                    }
+
+
+
+                    var groupedStocks = stockused
+                       .Where(s => s.L.HasValue && s.W.HasValue && s.T.HasValue) // Ensure L and W have values
+                       .GroupBy(s => new { L = s.L.Value, W = s.W.Value, T = s.T.Value, N = s.Name }) // Group by dimensions LxW
+                       .Select(group => new
+                       {
+                           Dimensions = group.Key,
+                           Quantity = group.Sum(item => GetQuantityFromStack(item.Stack)),
+                           Width = group.Key.W,
+                           Length = group.Key.L,
+                           Thickness = group.Key.T,
+                           Name = group.Key.N
+                       })
+                       .ToList();
+
+
+                    var totalstockscount = groupedStocks.Sum(x => x.Quantity);
+                    if (cutPieceSandQuotes.MaskingSides > 0)
+                    {
+                        if (cutPieceSandQuotes.MaskingSides == 1)
+                        {
+                            maskingTotal = totalstockscount * MaskingPriceOneSides;
+                        }
+                        else if (cutPieceSandQuotes.MaskingSides == 2)
+                        {
+                            maskingTotal = totalstockscount * MaskingPriceTwoSides;
+                        }
+                    }
+
+                    decimal customerFinalTotal = ((stockTotal - totalRebate) + cutCostTotal + sandingTotal + maskingTotal);
+                    customerFinalTotal = Math.Round(customerFinalTotal / Convert.ToDecimal(iy.Quantity), 2);
+
+                    var returnData = new CutPieceSandPricing
+                        {
+                            TotalCustomerCostPerPiece = customerFinalTotal,
+                            TotalCustomerCostTimesQuantity = customerFinalTotal * Convert.ToInt32(iy.Quantity),
+                            StockTotal = stockTotal,
+                            RebateTotal = totalRebate,
+                            CutCostTotal = cutCostTotal,
+                            SandingTotal = sandingTotal,
+                            MaskingTotal = maskingTotal,
+                            Quantity = Convert.ToInt32(iy.Quantity),
+                            PDF = rs.File,
+                            StockUsed = groupedStocks.Select(x => new FinalUsedStock
+                            {
+                                StockSku = x.Name,
+                                Length = x.Length,
+                                Width = x.Width,
+                                StockQty = x.Quantity,
+                                IdealYield = 0,
+                                IdealYieldStock = true
+                            }).ToList(),
+                            IdealYieldStock = true
+                        };
+                    cutPieceSandQuotes.CutPieceSandQuantityPricing.Add(returnData);
+                }
+
+                CutPieceSandQuote cut = new CutPieceSandQuote();
+                cut = cutPieceSandQuotes;
+
+                // Assuming CutPieceSandQuantityPricing is a list of objects with Quantity, TotalCustomerCostPerPiece, and TotalCustomerCostTimesQuantity
+                var cutPieces = cut.CutPieceSandQuantityPricing;
+
+                // Sort the list by quantity to ensure proper comparison order
+                cutPieces.Sort((a, b) => a.Quantity.CompareTo(b.Quantity));
+
+                // Initialize the lowest price encountered so far with a very high value
+                decimal lowestPriceSoFar = decimal.MaxValue;
+
+                // Iterate through the sorted list
+                foreach (var c in cutPieces)
+                {
+                    // Check if the current price is higher than the lowest price encountered so far
+                    if (c.TotalCustomerCostPerPiece > lowestPriceSoFar)
+                    {
+                        // If yes, set the current price to the lowest price
+                        c.TotalCustomerCostPerPiece = lowestPriceSoFar;
+                    }
+                    else
+                    {
+                        // If no, update the lowest price so far
+                        lowestPriceSoFar = c.TotalCustomerCostPerPiece;
+                    }
+
+                    // Update the total cost times quantity
+                    c.TotalCustomerCostTimesQuantity = c.TotalCustomerCostPerPiece * c.Quantity;
+                }
+
+
+                cut.CutPieceSandQuantityPricing = cutPieces;
+
+
+
+                await CutPieceSandOnAdd.InvokeAsync(cut);
+                ResetOptions();
+                isLoading = false;
+
+
+            }
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message + "Please try again in a few minutes.");
+        }
+
+    }
+
+
+
+
+    public class IdealYieldCalculation
+    {
+        public List<FinalUsedStock> StockUsed { get; set; }
+        public int Quantity { get; set; }
+    }
+    public static int ComputeIdealYield(double sheetLength, double sheetWidth, decimal pieceLength, decimal pieceWidth, decimal kerf)
+    {
+        // Step 1: Compare non-rotated and rotated configurations for the primary area
+        int nonRotatedLengthFit = (int)Math.Floor(sheetLength / ((double)pieceLength + (double)kerf));
+        int nonRotatedWidthFit = (int)Math.Floor(sheetWidth / ((double)pieceWidth + (double)kerf));
+        int totalNonRotatedPieces = nonRotatedLengthFit * nonRotatedWidthFit;
+
+        int rotatedLengthFit = (int)Math.Floor(sheetLength / ((double)pieceWidth + (double)kerf));
+        int rotatedWidthFit = (int)Math.Floor(sheetWidth / ((double)pieceLength + (double)kerf));
+        int totalRotatedPieces = rotatedLengthFit * rotatedWidthFit;
+
+        // Choose the better fit for the primary area
+        int bestPrimaryFit = Math.Max(totalNonRotatedPieces, totalRotatedPieces);
+
+        // Calculate dimensions used based on the best fit
+        double usedLength = (bestPrimaryFit == totalNonRotatedPieces)
+            ? nonRotatedLengthFit * ((double)pieceLength + (double)kerf)
+            : rotatedLengthFit * ((double)pieceWidth + (double)kerf);
+
+        double usedWidth = (bestPrimaryFit == totalNonRotatedPieces)
+            ? nonRotatedWidthFit * ((double)pieceWidth + (double)kerf)
+            : rotatedWidthFit * ((double)pieceLength + (double)kerf);
+
+        // Step 2: Track offcut areas after placing the best fit
+        double remainingLength = sheetLength - usedLength - (double)kerf;
+        double remainingWidth = sheetWidth - usedWidth - (double)kerf;
+
+        var offcuts = new List<(double Length, double Width)>();
+        if (remainingLength > 0)
+        {
+            offcuts.Add((remainingLength, sheetWidth));
+        }
+        if (remainingWidth > 0)
+        {
+            offcuts.Add((sheetLength, remainingWidth));
+        }
+
+        // Debugging: Log offcuts
+        Console.WriteLine($"Remaining Length: {remainingLength}, Remaining Width: {remainingWidth}");
+        foreach (var offcut in offcuts)
+        {
+            Console.WriteLine($"Offcut: {offcut.Length}x{offcut.Width}");
+        }
+
+        // Step 3: Validate fit for offcut regions (non-rotated and rotated configurations)
+        int totalOffcutPieces = 0;
+
+        foreach (var offcut in offcuts)
+        {
+            int nonRotatedOffcutFit = (int)Math.Floor(offcut.Length / ((double)pieceLength + (double)kerf)) *
+                                      (int)Math.Floor(offcut.Width / ((double)pieceWidth + (double)kerf));
+
+            int rotatedOffcutFit = (int)Math.Floor(offcut.Length / ((double)pieceWidth + (double)kerf)) *
+                                   (int)Math.Floor(offcut.Width / ((double)pieceLength + (double)kerf));
+
+            totalOffcutPieces += Math.Max(nonRotatedOffcutFit, rotatedOffcutFit);
+
+            // Debugging: Log each offcut's fit
+            Console.WriteLine($"Offcut ({offcut.Length}x{offcut.Width}) -> Non-Rotated Fit: {nonRotatedOffcutFit}, Rotated Fit: {rotatedOffcutFit}");
+        }
+
+        // Step 4: Sum up total pieces
+        int totalPieces = bestPrimaryFit + totalOffcutPieces;
+
+        // Debugging: Final results
+        Console.WriteLine($"Total Non-Rotated Pieces: {totalNonRotatedPieces}");
+        Console.WriteLine($"Total Rotated Pieces: {totalRotatedPieces}");
+        Console.WriteLine($"Total Offcut Pieces: {totalOffcutPieces}");
+        Console.WriteLine($"Total Pieces: {totalPieces}");
+
+        return totalPieces > 1000 ? 1 : totalPieces;
+    }
+    public void ResetOptions()
+    {
+        cutPieceSandQuotes = new CutPieceSandQuote();
+        selectedGrade = "";
+        selectedThickness = "";
+        selectedColor = "";
+        selectedSize = "";
+        sizes.Clear();
+        thicknesses.Clear();
+        colors.Clear();
+        thicknesses = new List<string>();
+        colors = new List<string>();
+        sizes = new List<string>();
+        grades = new List<string>();
+        grades = BCItemAttributes
+        .Where(attr => attr.NEMAGrade != null
+            && !string.IsNullOrEmpty(attr.LengthIn) && !string.IsNullOrEmpty(attr.WidthIn))
+        .Select(attr => attr.NEMAGrade)
+        .Distinct()
+        .ToList();
+        GradeDisabled = false;
+        ThicknessDisabled = false;
+        SizeDisabled = false;
+        ColorDisabled = false;
+        cutPieceSandQuotes.Size = "Select Size";
+        isLoading = false;
+        Kerf = 0.2M;
+        cutPieceSandQuotes.LengthPlus = 0.06M;
+        cutPieceSandQuotes.WidthPlus = 0.06M;
+        sandingTotal = 0.00M;
+        sandingTotalPerPiece = 0.00M;
+        isSandingOnly = false;
+        isMaskingOnly = false;
+        DisabledKerf = true;
+        kerfColor = "";
+        cutPieceSandQuotes.ThickPlus = .010M;
+        cutPieceSandQuotes.ThickMinus = .010M;
+        CustomerMaterialOnly = false;
+        GradeDisabled = false;
+        ThicknessDisabled = false;
+        SizeDisabled = false;
+        ColorDisabled = false;
+        CustomerPrice = 0.00M;
+        SheetLength = 0.00M;
+        SheetWidth = 0.00M;
+        SheetThickness = 0.00M;
+        CustomerMaterialOnly = false;
+        CustomMaterialOnly = false;
+        isSandingOnly = false;
+        isMaskingOnly = false;
+        CustomMinSheetMaterial = 0;
+        CustomerMaterialOnly = false;
+        CustomMaterialOnly = false;
+        ParentSKU = string.Empty;
+        maskingTotal = 0;
+        maskingTotalPerPiece = 0;
+        removeGlossOnly = false;
+        StateHasChanged();
+
+    }
+    private static int GetQuantityFromStack(object stack)
+    {
+        // Convert the stack object to a string.
+        string stackAsString = Convert.ToString(stack);
+
+        // If the string representation contains a decimal point, ignore it.
+        if (stackAsString.Contains("."))
+        {
+            return 0;
+        }
+
+        // Check for "False" interpreted as quantity 1.
+        if (stackAsString.Trim().Equals("False", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        // Try parsing the string as an integer.
+        if (int.TryParse(stackAsString, out int intValue))
+        {
+            return intValue; // Use the integer value as the quantity.
+        }
+
+        // All other cases, including non-numeric strings or bool true, are ignored.
+        return 0;
+    }
+
+    public async Task<bool> ErrorHandling(bool isSanding, bool isMasking, bool CustomMaterialOnly)
+    {
+        var validationMessages = new List<string>();
+        if (isSanding)
+        {
+            if (CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                if (SheetLength <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Length");
+                }
+                if (SheetWidth <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Width");
+                }
+                if (SheetThickness <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Thickness");
+                }
+                if (CustomerMaterialOnly && CustomMaterialOnly)
+                {
+                    validationMessages.Add("Can't have both Custom and Customer Material Checked");
+                }
+
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(selectedSize))
+                {
+                    validationMessages.Add("- Size");
+                }
+                LengthWidth lw = new LengthWidth();
+                var size = lw.GetLengthWidthFromCombinedSize(selectedSize);
+                if (size == null)
+                {
+                    validationMessages.Add("- Must select an exact sheet size");
+                }
+            }
+
+
+        }
+        else if (isMasking)
+        {
+            if (CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                if (SheetLength <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Length");
+                }
+                if (SheetWidth <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Width");
+                }
+                if (SheetThickness <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Thickness");
+                }
+                if (CustomerMaterialOnly && CustomMaterialOnly)
+                {
+                    validationMessages.Add("Can't have both Custom and Customer Material Checked");
+                }
+                if (cutPieceSandQuotes.MaskingSides <= 0)
+                {
+                    validationMessages.Add("- Masking Sides can be 1 or 2");
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(selectedSize))
+                {
+                    validationMessages.Add("- Size Not Selected");
+                }
+                if (cutPieceSandQuotes.MaskingSides <= 0)
+                {
+                    validationMessages.Add("- Masking Sides can be 1 or 2");
+                }
+            }
+
+        }
+        else if (CustomMaterialOnly)
+        {
+            if (SheetLength <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Length");
+            }
+            if (SheetWidth <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Width");
+            }
+            if (SheetThickness <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Thickness");
+            }
+        }
+        else
+        {
+            if (CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                if (SheetLength <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Length");
+                }
+                if (SheetWidth <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Width");
+                }
+                if (SheetThickness <= 0)
+                {
+                    validationMessages.Add("- Customer Sheet Thickness");
+                }
+                if (CustomerMaterialOnly && CustomMaterialOnly)
+                {
+                    validationMessages.Add("Can't have both Custom and Customer Material Checked");
+                }
+
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(selectedSize))
+                {
+                    validationMessages.Add("- Size");
+                }
+            }
+            if (cutPieceSandQuotes.Length <= 0)
+            {
+                validationMessages.Add("- Length must be greater than 0.");
+            }
+
+            if (cutPieceSandQuotes.Width <= 0)
+            {
+                validationMessages.Add("- Width must be greater than 0.");
+            }
+            if (cutPieceSandQuotes.Kerf <= 0)
+            {
+                cutPieceSandQuotes.Kerf = .200M;
+            }
+        }
+        if (CustomerMaterialOnly || CustomMaterialOnly)
+        {
+            if (SheetLength <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Length");
+            }
+            if (SheetWidth <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Width");
+            }
+            if (SheetThickness <= 0)
+            {
+                validationMessages.Add("- Customer Sheet Thickness");
+            }
+            if (CustomerMaterialOnly && CustomMaterialOnly)
+            {
+                validationMessages.Add("Can't have both Custom and Customer Material Checked");
+            }
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(selectedGrade))
+            {
+                validationMessages.Add("- Grade");
+            }
+            if (string.IsNullOrEmpty(selectedThickness))
+            {
+                validationMessages.Add("- Thickness");
+            }
+            if (string.IsNullOrEmpty(selectedColor))
+            {
+                validationMessages.Add("- Color");
+            }
+        }
+
+        if (string.IsNullOrEmpty(Customer))
+        {
+            validationMessages.Add("- Customer");
+        }
+        if (string.IsNullOrEmpty(cutPieceSandQuotes.Quantity))
+        {
+            validationMessages.Add("- Quantity");
+        }
+        else
+        {
+            var quantities = cutPieceSandQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var q in quantities)
+            {
+                if (!int.TryParse(q, out int qty))
+                {
+                    validationMessages.Add($"- Quantity '{q}' must be a number");
+                    break;
+                }
+                if (int.TryParse(q, out int qtyAmt))
+                {
+                    if (qtyAmt > 1000)
+                    {
+                        validationMessages.Add($"- Quantity '{q}' must be 1000 or less");
+                        break;
+                    }
+                }
+
+            }
+        }
+
+        // Check if there are any missing fields
+        if (validationMessages.Any())
+        {
+            // Construct the alert message
+            string alertMessage = "Please complete the following fields before proceeding:\n" + string.Join("\n", validationMessages);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution
+            return true;
+        }
+        return false;
+    }
+
+    private async Task HandleLegnthChange(FocusEventArgs e)
+    {
+        try
+        {
+            var length = cutPieceSandQuotes.Length;
+
+            bool isMultipleOf6Or16 = helpers.IsMultipleOf6Or16(length);
+
+            if (isMultipleOf6Or16)
+            {
+                cutPieceSandQuotes.LengthPlus = 0.200M;
+                cutPieceSandQuotes.LengthMinus = 0.200M;
+                toleranceColorLength = "Red";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            string alertMessage = "Length/Tolerance must not be 0";
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+        }
+    }
+    private async Task HandleWidthChange(FocusEventArgs e)
+    {
+        try
+        {
+            var width = cutPieceSandQuotes.Width;
+
+            bool isMultipleOf6Or16 = helpers.IsMultipleOf6Or16(width);
+
+            if (isMultipleOf6Or16)
+            {
+                cutPieceSandQuotes.WidthPlus = 0.200M;
+                cutPieceSandQuotes.WidthMinus = 0.200M;
+                toleranceColorWidth = "Red";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            string alertMessage = "Length/Tolerance must not be 0";
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+        }
+    }
+
+    private void HandleCheckboxChange(ChangeEventArgs e)
+    {
+        isSandingOnly = (bool)e.Value;
+        // Call any method you want here
+        // For example, you could call a method to process this change
+        //ProcessSandingOnlyChange(isSandingOnly);
+    }
+    private void HandleMaskingCheckboxChange(ChangeEventArgs e)
+    {
+        isMaskingOnly = (bool)e.Value;
+
+    }  
+    private void HandleRemoveGlossOnlyCheckboxChange(ChangeEventArgs e)
+    {
+        removeGlossOnly = (bool)e.Value;
+
+    }
+    private void HandleCustomerMaterialCheckboxChange(ChangeEventArgs e)
+    {
+
+        CustomerMaterialOnly = (bool)e.Value;
+        if (CustomerMaterialOnly == true)
+        {
+            SetCustomOrCustomerParams(true);
+            cutPieceSandQuotes.CustomerMaterialOnly = true;
+
+        }
+        else
+        {
+            SetCustomOrCustomerParams(false);
+            cutPieceSandQuotes.CustomerMaterialOnly = false;
+
+        }
+        DisabledKerf = false;
+        Kerf = 0.2M;
+        kerfColor = "Red";
+
+    }
+    private void HandleCustomMaterialCheckboxChange(ChangeEventArgs e)
+    {
+
+        CustomMaterialOnly = (bool)e.Value;
+        if (CustomMaterialOnly == true)
+        {
+            SetCustomOrCustomerParams(true);
+            cutPieceSandQuotes.CustomMaterialOnly = true;
+
+
+        }
+        else
+        {
+            SetCustomOrCustomerParams(false);
+            cutPieceSandQuotes.CustomMaterialOnly = false;
+
+        }
+        DisabledKerf = false;
+        Kerf = 0.2M;
+        kerfColor = "Red";
+    }
+
+    private void SetCustomOrCustomerParams(bool disabled)
+    {
+        if (disabled == true)
+        {
+            GradeDisabled = true;
+            ThicknessDisabled = true;
+            SizeDisabled = true;
+            ColorDisabled = true;
+        }
+        else
+        {
+            GradeDisabled = false;
+            ThicknessDisabled = false;
+            SizeDisabled = false;
+            ColorDisabled = false;
+        }
+    }
+
+    public decimal CalculateWeight(
+        int sheetQty,
+        decimal weightPerSheet,
+        decimal fullSheetWidth,
+        decimal fullSheetLength,
+        decimal cutPieceWidth,
+        decimal cutPieceLength,
+        int idealYield) // Use IdealYield instead of cutPiecesPerSheet
+    {
+        if (idealYield <= 0) throw new ArgumentException("IdealYield must be positive.");
+
+        // Calculate density using IdealYield
+        decimal partArea = cutPieceWidth * cutPieceLength;
+        decimal density = weightPerSheet / (idealYield * partArea);
+
+        // Calculate weight per piece
+        decimal perPieceWeight = cutPieceWidth * cutPieceLength * density;
+
+        // Calculate total weight for all pieces across all sheets
+        decimal totalWeight = perPieceWeight * idealYield * sheetQty;
+
+        return totalWeight;
+    }
+
+
+}

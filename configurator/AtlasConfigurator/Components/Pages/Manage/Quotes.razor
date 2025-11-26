@@ -1,0 +1,121 @@
+﻿@page "/manage/quotes"
+@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models.Auth
+@using AtlasConfigurator.Models.Database
+@using System.Text.Json
+@using AtlasConfigurator.Services
+@rendermode InteractiveServer
+@inject IAtlasManagementService _atlasManagementService
+@inject IJSRuntime JS
+@inject IHttpContextAccessor HttpContextAccessor
+@inject WorkOsAuthService WorkOsAuthService
+@inject NavigationManager NavigationManager
+
+
+@if (isAuthenticated)
+    {
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" id="quotesTable">
+            <thead>
+                <tr class="bg-gray-100 dark:bg-gray-700">
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Id</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Username</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Created On</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Email URL</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Customer Number</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Customer Name</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Quote No</th>
+                    <th class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var submission in submissions)
+                {
+                    <tr class="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.Id</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.Username</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.Createdon.ToString("g")</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.Email</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.CustomerNumber</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.CustomerName</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">@submission.QuoteNo</td>
+                        <td class="py-2 px-4 border-b border-gray-200 dark:border-gray-600">
+                            <button class="bg-blue-500 dark:bg-blue-700 text-white px-2 py-1 rounded" @onclick="() => CopyToJson(submission)">
+                                Copy JSON
+                            </button>
+@*                             <button class="bg-green-500 text-white px-2 py-1 rounded" @onclick="() => ExportIndividualToPdf(submission)">
+                                Export to PDF
+                            </button> *@
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <button class="bg-green-500 text-white px-2 py-1 rounded mt-4" @onclick="ExportToPdf">Export Table to PDF</button>
+
+}
+ 
+@code {
+    public List<Submission> submissions = new List<Submission>();
+    private bool isAuthenticated = false;
+    private string UserEmail = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+
+    }
+    private async Task ExportToPdf()
+    {
+        await JS.InvokeVoidAsync("exportTableToPdf", "quotesTable");
+    }
+
+    private async Task ExportIndividualToPdf(Submission submission)
+    {
+        var submissionJson = JsonSerializer.Serialize(submission, new JsonSerializerOptions { WriteIndented = true });
+        await JS.InvokeVoidAsync("exportIndividualToPdf", submissionJson);
+    }
+    private async Task CopyToJson(Submission submission)
+    {
+        var json = JsonSerializer.Serialize(submission, new JsonSerializerOptions { WriteIndented = true });
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", json);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CheckAuthentication();
+            StateHasChanged();
+            if (isAuthenticated)
+            {
+                submissions = await _atlasManagementService.ListSubmissions();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task CheckAuthentication()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
+        var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
+        var status = await WorkOsAuthService.IsUserAuthenticated(ipAddress, userAgent);
+        switch (status)
+        {
+            case AuthenticationStatus.Authenticated:
+                isAuthenticated = true;
+                var userdetails = await WorkOsAuthService.GetUserDetails();
+                UserEmail = userdetails.email;
+                break;
+            case AuthenticationStatus.NotAuthenticated:
+                // Explicitly handle not authenticated case
+                NavigationManager.NavigateTo("/login", true);
+                break;
+            case AuthenticationStatus.Error:
+                // Handle error or system issue
+                NavigationManager.NavigateTo("/login", true);
+                break;
+        }
+    }
+}

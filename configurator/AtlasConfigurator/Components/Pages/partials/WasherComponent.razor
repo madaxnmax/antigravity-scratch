@@ -1,0 +1,607 @@
+﻿@using AtlasConfigurator.Helpers.Washers
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Workers
+@using System.Globalization
+@using AtlasConfigurator.Workers.CutPieceSand
+@inject GetSheetPricing getSheetPricing
+@inject IJSRuntime JSRuntime
+@inject BCItemTransformation bCItemTransformation
+@inject WasherHelper _helper;
+
+<div class="w-1/2 pl-2">
+    <div class="mb-4 border p-2 dark:border-gray-700">
+        <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+            <div>OVERRIDE</div>
+            <div>
+                <button class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+            </div>
+        </div>
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <!-- Grade Dropdown --> 
+            <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            value="@selectedGrade" @onchange="HandleGradeChange">
+                <option value="">Grade</option>
+                @foreach (var grade in grades)
+                {
+                    <option value="@grade">@grade</option>
+                }
+            </select>
+
+            <!-- Thickness Dropdown -->
+            <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            value="@selectedThickness" @onchange="HandleThicknessChange">
+                <option value="0.000">Thickness</option>
+                @if (thicknesses != null)
+                {
+                    @foreach (var thickness in thicknesses)
+                    {
+                        <option value="@thickness">@thickness</option>
+                    }
+                }
+
+            </select>
+            <!-- Size Dropdown -->
+            <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            value="@washerQuote.Size" @onchange="HandleSizeChange">
+                <option value="0">Size</option>
+                @foreach (var size in sizes)
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+            <!-- Color Dropdown -->
+            <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            value="@washerQuote.Color" @onchange="HandleColorChange">
+                <option value="">Select Color</option>
+                @foreach (var color in colors)
+                {
+                    <option value="@color">@color</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">ID</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.ID">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">IDPlus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.IDPlus">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">IDMinus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.IDMinus">
+            </div>
+
+        </div>
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">OD</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.OD">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">OD Plus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.ODPlus">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">OD Minus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.ODMinus">
+            </div>
+        </div>
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">Sanded Thickness</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.SandedThickness">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">Sanded Plus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.ThickPlus">
+            </div>
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">Sanded Minus</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.ThickMinus">
+            </div>
+        </div>
+        <div class="mb-2 grid grid-cols-3 gap-2">
+            <div>
+                <label for="custMinSheet" class="mb-1 block text-xs dark:text-white">Sanded Sides</label>
+                <input id="sheetThickness" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" @bind="washerQuote.SandedSides">
+            </div>
+        </div>
+        <input class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Quantity:" @bind="washerQuote.Quantity">
+        <textarea class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Extra Comments:" @bind="washerQuote.Comments"></textarea>
+        @if (isLoading)
+        {
+            <button disabled class="flex w-full items-center justify-center bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                </svg>
+                Loading...
+            </button>
+        }
+        else
+        {
+            <button @onclick="AddToQuote" class="w-full bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                Add to Quote
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<WasherQuote> WasherOnAdd { get; set; }
+    [Parameter]
+    public List<ItemAttributes> BCItemAttributes { get; set; }
+    [Parameter]
+    public string Customer { get; set; }
+
+    private bool isLoading = false;
+
+    private string selectedGrade = "";
+    private string selectedThickness = "";
+    private string selectedColor = "";
+    private string selectedSize = "";
+
+    public WasherQuote washerQuote = new WasherQuote();
+
+
+    private List<string> grades = new List<string>();
+    private List<string> thicknesses = new List<string>();
+    private List<string> colors = new List<string>();
+    private List<string> sizes = new List<string>();
+
+
+
+    // Cost factors for calculations
+    private const decimal CuttingCharge = 30m;
+    private const double ExcellonFeedRate = 20.0;
+    private const double RouterFeedRate = 40.0;
+    private const decimal CostPerMinuteMilling = 1.67m;
+    private const decimal CostPerMinuteRouting = 2.08m;
+    // private const decimal MinimumLotCostExcellon = 210m;
+    // private const decimal MinimumLotCostRouter = 300m;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        washerQuote = new WasherQuote();
+
+        // grades = await MaterialService.GetGradesAsync();
+        grades = BCItemAttributes
+            .Where(attr => attr.NEMAGrade != null)
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+        }
+    }
+
+    private void ResetOptions()
+    {
+        washerQuote = new WasherQuote();
+        selectedGrade = "";
+        selectedThickness = "";
+        selectedColor = "";
+        selectedSize = "";
+
+
+        grades = new List<string>();
+        thicknesses = new List<string>();
+        colors = new List<string>();
+        sizes = new List<string>();
+        grades = BCItemAttributes
+        .Where(attr => attr.NEMAGrade != null)
+        .Select(attr => attr.NEMAGrade)
+        .Distinct()
+        .ToList();
+        isLoading = false;
+
+        StateHasChanged();
+    }
+    public async Task<bool> ErrorHandling()
+    {
+        decimal sandedThickness = Convert.ToDecimal(washerQuote.SandedThickness);
+
+        var validationMessages = new List<string>();
+        if (string.IsNullOrEmpty(selectedGrade))
+        {
+            validationMessages.Add("- Grade");
+        }
+        if (string.IsNullOrEmpty(selectedThickness))
+        {
+            validationMessages.Add("- Thickness");
+        }
+        if (string.IsNullOrEmpty(selectedColor))
+        {
+            validationMessages.Add("- Color");
+        }
+        if (string.IsNullOrEmpty(selectedSize))
+        {
+            validationMessages.Add("- Size");
+        }
+        if (string.IsNullOrEmpty(Customer))
+        {
+            validationMessages.Add("- Customer");
+        }
+        if (string.IsNullOrEmpty(washerQuote.Quantity))
+        {
+            validationMessages.Add("- Quantity");
+        }
+        // if (washerQuote.ID <= 0)
+        // {
+        //     validationMessages.Add("- ID");
+        // }
+        if (washerQuote.OD <= 0)
+        {
+            validationMessages.Add("- OD");
+        }
+        if(washerQuote.Thickness <= .005)
+        {
+            validationMessages.Add("- Thickness to low. Manual calcualtion required.");
+        }
+        if (sandedThickness > 0 && sandedThickness > (decimal)washerQuote.Thickness)
+        {
+            validationMessages.Add("- Sanded Thickness Larger Than Sheet");
+        }        
+        else
+        {
+            if(!string.IsNullOrEmpty(washerQuote.Quantity))
+            {
+                try
+                {
+                    var quantities = washerQuote.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var q in quantities)
+                    {
+                        if (!int.TryParse(q, out int qty))
+                        {
+                            validationMessages.Add($"- Quantity '{q}' must be a number");
+                            isLoading = false;
+                            break;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    validationMessages.Add($"- Quantity is required. Format: 10,100,500");
+                }
+            }
+            else
+            {
+                validationMessages.Add($"- Quantity is required. Format: 10,100,500");
+
+            }
+
+        }
+        // Check if there are any missing fields
+        if (validationMessages.Any())
+        {
+            // Construct the alert message
+            string alertMessage = "Please complete the following fields before proceeding:\n" + string.Join("\n", validationMessages);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution
+            return true;
+        }
+
+        return false;
+    }
+    private async Task AddToQuote()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        // Clear any existing pricing to avoid duplicates
+        washerQuote.Pricing.Clear();
+
+        washerQuote.SheetSize = selectedSize;
+        washerQuote.Grade = selectedGrade;
+        washerQuote.Thickness = double.Parse(selectedThickness, CultureInfo.InvariantCulture);
+        washerQuote.Color = selectedColor;
+        washerQuote.Size = selectedSize;
+
+        var errors = await ErrorHandling();
+        if (errors)
+        {
+            isLoading = false;
+            return;
+        }
+        else
+        {
+            var quantities = washerQuote.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var q in quantities)
+            {
+                if (int.TryParse(q.Trim(), out int quantity))
+                {
+                    var newWasher = new WasherQuote
+                    {
+                        SheetSize = washerQuote.SheetSize,
+                        Grade = washerQuote.Grade,
+                        Thickness = washerQuote.Thickness,
+                        Color = washerQuote.Color,
+                        Size = washerQuote.Size,
+                            Quantity = q,
+                        Comments = washerQuote.Comments,
+                        SandedSides = washerQuote.SandedSides,
+                        ThickMinus = washerQuote.ThickMinus,
+                        ThickPlus = washerQuote.ThickPlus,
+                        SandedThickness = washerQuote.SandedThickness,
+                        ODMinus = washerQuote.ODMinus,
+                        ODPlus = washerQuote.ODPlus,
+                        OD = washerQuote.OD,
+                        IDMinus = washerQuote.IDMinus,
+                        IDPlus = washerQuote.IDPlus,
+                        ID = washerQuote.ID,
+                    };
+
+
+                    LengthWidth lw = new LengthWidth();
+                    var sizes = lw.GetLengthWidthFromCombinedSize(selectedSize);
+                    var itemNum = BCItemAttributes
+                        .Where(attr => attr.NEMAGrade == selectedGrade
+                                       && attr.Thicknesses == selectedThickness
+                                       && Convert.ToInt32(attr.LengthIn) == sizes.Length
+                                       && Convert.ToInt32(attr.WidthIn) == sizes.Width
+                                       && attr.Color == selectedColor
+                                       && !attr.ItemNumber.EndsWith("D"))
+                        .FirstOrDefault();
+                    newWasher.QuantityRequested = quantity;
+                    newWasher.ItemNo = itemNum.ItemNumber;
+                    newWasher.Quantity = q;
+
+
+                    try
+                    {
+                        // Step 1: Calculate panel yield (items per panel)
+                        //This is actually calculating Sheet Yeild
+                        // int itemsPerPanel = _helper.CalculatePanelYield(washerQuote);
+                        string panelSize = _helper.GetPanelSizeFromSheetSize(selectedSize, newWasher, int.Parse(q)); // Helper to determine actual panel size
+                        newWasher.PanelSize = panelSize;
+                        int itemsPerPanel = _helper.CalculatePanelYield(newWasher, panelSize);
+
+                        int itemsPerSheet = _helper.CalculateSheetYield(newWasher);
+
+                        // Step 1b: Calculate how many panels fit within one full sheet
+                        int panelsPerFullSheet = _helper.CalculatePanelsPerFullSheet(newWasher);
+
+                        // Step 1c: Calculate how many items fit in each full sheet
+                        //int itemsPerFullSheet = itemsPerPanel * panelsPerFullSheet;
+
+                        // Step 2: Calculate the number of full sheets needed
+                        int fullSheetsNeeded = (int)Math.Ceiling((double)quantity / itemsPerSheet);
+                        // Step 3: Calculate total panels used
+                        int totalPanelsUsed = (int)Math.Ceiling((double)quantity / itemsPerPanel);
+
+
+                        // Retrieve the base price per full sheet
+                        var quantityPricing = await bCItemTransformation.CalculatePricingForQuantitySimple(fullSheetsNeeded, newWasher.ItemNo, Customer);
+                        decimal basePricePerFullSheet = quantityPricing.PricePerItem;
+
+                        var priceperpanel = basePricePerFullSheet / panelsPerFullSheet;
+                        var priceperpanel2 = priceperpanel * totalPanelsUsed;
+
+                        // Step 4: Calculate total material cost based on the number of full sheets
+                        decimal materialCost = basePricePerFullSheet * fullSheetsNeeded;
+                        materialCost = priceperpanel2;
+
+                        double newThickness;
+
+                        // Check if SandedThickness has a valid value and use it, otherwise fallback to Thickness
+                        newThickness = double.TryParse(newWasher.SandedThickness, out double sandedThicknessValue) && sandedThicknessValue > 0
+                            ? sandedThicknessValue
+                            : newWasher.Thickness;
+
+                        // Calculate panel size and determine machine type based on thickness and panel size
+                        bool useRouter = _helper.IsRouterRequired(newThickness, panelSize); // Updated logic for machine selection
+                        HashSet<string> Phenolic = new HashSet<string> { "L","LE","C","CE","XX","XXX" };
+                        bool useMilling = true;
+                        if (Phenolic.Contains(newWasher.Grade) && useRouter == true)
+                        {
+                            useMilling = false;
+                        }
+                        if(useRouter)
+                        {
+                            newWasher.MachineType = "Router";
+                        }
+                        else
+                        {
+                            newWasher.MachineType = "Excellon";
+                        }
+                    // Step 5: Calculate labor cost based on the machine type
+                        var machineData = useRouter
+                            ? _helper.CalculateRouterLaborCost(newWasher, totalPanelsUsed, isMilling: useMilling)
+                            : _helper.CalculateExcellonLaborCost(newWasher, totalPanelsUsed);
+                        decimal laborCost = machineData.totalcost;
+
+                        // Step 6: Calculate sanding cost if required, based on panels used
+                        decimal sandingCost = 0;
+                        if (!string.IsNullOrEmpty(newWasher.SandedThickness))
+                        {
+                            decimal sandedThickness = Convert.ToDecimal(newWasher.SandedThickness);
+                            if (sandedThickness > 0 && sandedThickness < (decimal)newWasher.Thickness)
+                            {
+                                // Calculate sanding cost per panel and multiply by total panels used
+                                sandingCost = _helper.CalculateSandingCost(newWasher, totalPanelsUsed);
+                            }
+                            else
+                            {
+                                string alertMessage = "Sanded Thickness is greater than or equal to Thickness.";
+                                await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+                                break;
+                            }
+                        }
+
+                        // Step 7: Calculate the cutting charge based on the number of sheets needed
+                        decimal cuttingCharge = CuttingCharge * fullSheetsNeeded;
+
+                        // Step 8: Calculate total price per item
+                        decimal totalCost = materialCost + laborCost + sandingCost + cuttingCharge + machineData.margin;
+                        decimal minimumOrder = 500;
+                        decimal pricePerItem = Math.Max(totalCost, minimumOrder) / quantity;
+
+                        int PanelWidthVal = 0, PanelLengthVal = 0;
+                        try
+                        {
+                            string[] dimensions = panelSize.Split('x');
+                            if (dimensions.Length != 2)
+                                throw new FormatException("Expected format 'width.xlength'");
+
+                            PanelWidthVal = (int)double.Parse(dimensions[0]); // Parse width to double, cast to int
+                            PanelLengthVal = (int)double.Parse(dimensions[1]); // Parse length to double, cast to int
+
+                            Console.WriteLine($"PanelWidth: {PanelWidthVal}");  // Output: PanelWidth: 18
+                            Console.WriteLine($"PanelLength: {PanelLengthVal}"); // Output: PanelLength: 24
+                        }
+                        catch (FormatException)
+                        {
+                            Console.WriteLine("Invalid format. Expected 'width.xlength' (e.g., '18.00x24.00')");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error parsing panelSize: {ex.Message}");
+                        }
+                        // Create a new QuantityPricing entry with the calculated price
+                        var pricing = new WasherQuantityPricing(quantity, pricePerItem)
+                            {
+                                PanelsUsed = totalPanelsUsed,
+                                SandingTotal = sandingCost,
+                                DiscountPercentage = quantityPricing.DiscountPercentage,
+                                MaterialCost = materialCost,
+                                PanelSize = panelSize,
+                                MachineCost = laborCost,
+                                SheetCost = basePricePerFullSheet,
+                                TotalPanels = totalPanelsUsed,
+                                TotalSheets = fullSheetsNeeded,
+                                PanelYield = itemsPerPanel,
+                                CutCharge = cuttingCharge,
+                                Margin = machineData.margin,
+                                PanelsPerFullSheet = panelsPerFullSheet,
+                                PanelLength = PanelLengthVal,
+                                PanelWidth = PanelWidthVal
+                            };
+                        newWasher.Pricing.Add(pricing);
+                        await WasherOnAdd.InvokeAsync(newWasher);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", "Something went wrong. Please try again.");
+                        isLoading = false;
+                        StateHasChanged();
+                        break;
+                    }
+                }
+
+            }
+            ResetOptions();
+        }
+    }
+
+
+
+
+     
+    private async Task HandleGradeChange(ChangeEventArgs e)
+    {
+        selectedGrade = e.Value.ToString();
+        //thicknesses = await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+        thicknesses = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses != null)
+            .Select(attr => attr.Thicknesses)
+            .Distinct()
+       .OrderBy(thickness => decimal.Parse(thickness, CultureInfo.InvariantCulture))
+            .ToList();
+        selectedThickness = ""; // Reset thickness selection
+        colors.Clear(); // Reset colors as well
+    }
+
+    private async Task HandleOverrideChange(FocusEventArgs e)
+    {
+        var sku = "";//washerQuote.OverrideSku;
+        var result = BCItemAttributes.Where(x => x.ItemNumber == sku).ToList();
+        if (result.Count > 0)
+        {
+            selectedGrade = result.Select(x => x.NEMAGrade).FirstOrDefault();
+            selectedThickness = result.Select(x => x.Thicknesses).FirstOrDefault().ToString();
+
+
+            thicknesses.Clear();
+            thicknesses = result.Select(x => x.Thicknesses).ToList(); //await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+            sizes.Clear();
+            sizes = result
+    .Select(x => $"{x.LengthIn}x{x.WidthIn}") // Format each element as "LxW"
+    .Distinct() // Ensure each "LxW" format is unique
+    .ToList(); // Convert to List<string>
+
+            selectedSize = sizes.FirstOrDefault();
+            colors.Clear();
+            colors = result.Select(x => x.Color).Distinct().ToList();
+            selectedColor = colors.FirstOrDefault();
+
+            washerQuote.Grade = selectedGrade;
+            washerQuote.Thickness = double.Parse(selectedThickness, CultureInfo.InvariantCulture);
+            washerQuote.Color = selectedColor;
+            washerQuote.Size = selectedSize;
+        }
+    }
+    private async Task HandleThicknessChange(ChangeEventArgs e)
+    {
+        selectedThickness = e.Value?.ToString();
+        // Filter items based on the selected grade and thickness.
+        var filteredItems = BCItemAttributes
+            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness)
+            .ToList();
+
+        // Construct the size string from WidthIn and LengthIn, and collect distinct values.
+        sizes = filteredItems
+          .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0)
+         .Select(item => $"{item.LengthIn}x{item.WidthIn}") // Create the "Width x Length" string
+           .Distinct() // Remove duplicates
+           .OrderBy(size => size) // Optionally order the sizes
+           .ToList();
+
+    }
+
+    private async Task HandleSizeChange(ChangeEventArgs e)
+    {
+        LengthWidth lw = new LengthWidth();
+        selectedSize = e.Value?.ToString();
+        int convertedSize = 0;
+        bool convertedSizeIsZero = false;
+        if (int.TryParse(selectedSize, out convertedSize))
+        {
+            convertedSizeIsZero = true;
+        }
+        if (!convertedSizeIsZero)
+        {
+            var stocksize = lw.GetLengthWidthFromCombinedSize(selectedSize);
+            colors = BCItemAttributes
+                .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && Convert.ToInt32(attr.LengthIn) == stocksize.Length && Convert.ToInt32(attr.WidthIn) == stocksize.Width)
+                .Select(attr => attr.Color)
+                .Distinct()
+                .ToList();
+        }
+
+
+        //colors = await MaterialService.GetColorsByGradeAndThicknessAndSizeAsync(selectedGrade, selectedThickness, selectedSize);
+    }
+
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+        selectedColor = e.Value?.ToString();
+        // Perform further actions if needed, like updating another part of the model or UI.
+    }
+     
+
+}

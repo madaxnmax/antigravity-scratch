@@ -1,0 +1,1899 @@
+﻿@page "/"
+@using AtlasConfigurator.Components.Pages.partials
+@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.Auth
+@using AtlasConfigurator.Models.BusinessCentral
+@using AtlasConfigurator.Models.CutPieceSand
+@using AtlasConfigurator.Models.CutRod
+@using AtlasConfigurator.Models.Database
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Services
+@using AtlasConfigurator.Workers
+@using Newtonsoft.Json
+@using BlazorInputFile
+@using System.Text
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@inject WorkOsAuthService WorkOsAuthService
+@inject NavigationManager NavigationManager
+@inject IHttpContextAccessor HttpContextAccessor
+@inject Authentication _Authentication
+@inject BCItemTransformation transform
+@inject IAtlasManagementService _atlasManagementService
+
+@if (!DataLoading)
+{
+    @if (isAuthenticated)
+    {
+        <PageTitle>Configurator</PageTitle>
+
+        <div class="max-w-1050 min-w-970 container mx-auto p-4 dark:bg-gray-700">
+            <h1 class="text-4xl font-bold leading-tight text-gray-800 dark:text-gray-200">
+                @PageTab
+            </h1>
+        </div>
+
+
+        <div class="max-w-1050 min-w-970 container mx-auto p-4 dark:bg-gray-700">
+            <!-- Navigation buttons -->
+            <div class="mb-4 flex items-center space-x-2">
+                <button @onclick="@( () => ActivateTab("Sheet") )" class="@(ActiveTab == "Sheet" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Sheet</button>
+                <button @onclick="@( () => ActivateTab("Cut Piece/Sand") )" class="@(ActiveTab == "Cut Piece/Sand" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Cut Piece/Sand</button>
+                <button @onclick="@( () => ActivateTab("Rod") )" class="@(ActiveTab == "Rod" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Rod</button>
+                <button @onclick="@( () => ActivateTab("Cut Rod") )" class="@(ActiveTab == "Cut Rod" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Cut Rod</button>
+                <button @onclick="@( () => ActivateTab("Tube") )" class="@(ActiveTab == "Tube" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Tube</button>
+                <button disabled @onclick="@( () => ActivateTab("Cut Tube") )" class="@(ActiveTab == "Cut Tube" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Cut Tube</button>
+                <button @onclick="@( () => ActivateTab("Washer") )" class="@(ActiveTab == "Washer" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Washer</button>
+                <button @onclick="@( () => ActivateTab("Custom Grind") )" class="@(ActiveTab == "Custom Grind" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">Custom Grind</button>
+                <button @onclick="@( () => ActivateTab("AI") )" class="@(ActiveTab == "AI" ? "bg-blue-700" : "bg-sky-800") text-white px-4 py-2 rounded">AI</button>
+
+                <button @onclick="@( () => NewQuote(false))" class="bg-red-600 text-white px-4 py-2 rounded">New Quote</button>
+
+            </div>
+
+            <!-- Left column for items -->
+            <div class="flex">
+                <div class="w-1/2 pr-2">
+                    <div class="mb-4 flex space-x-2">
+                        @if (isAtlasEmployee)
+                        {
+                            <!-- Customer # Input - Make it take less space -->
+                            <input class="@(GetInputClassNo()) flex-1 p-2 dark:bg-gray-700 dark:text-white" aria-invalid="@invalidNo" @bind="CustomerNo" style="color:@ValidCustomerColor" @onblur="CustNoInputChangeHandler" @onfocus="ClearCustomerSearchResults" placeholder="Customer #" required>
+
+                            <!-- Customer Lookup Input - Make it take more space -->
+                            <div class="flex-2 relative">
+                                <input class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                aria-invalid="@invalidName" @bind="CustomerName" @oninput="CustNameInputChangeHandler" placeholder="Customer Lookup (Search)" required>
+
+                                @if (customerSearchResults.Any())
+                                {
+                                    <ul class="absolute z-10 mt-1 max-h-60 w-full overflow-auto bg-white shadow-md dark:bg-gray-700">
+                                        @foreach (var customer in customerSearchResults.Take(30))
+                                        {
+                                            <li @onclick="() => SelectCustomer(customer)" class="cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                @customer.Name
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            //Hello
+                            <h3>Hello, @CustomerName</h3>
+                        }
+                    </div>
+
+                    <div class="flex flex-col space-y-2">
+                        <!-- Adjust divs for dark theme -->
+                        @foreach (var item in TempItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+                                    <div class="text-lg font-semibold">@item.Item</div>
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity</span>
+                                        <span class="ml-4 font-medium">Northbrook Stock: @item.NorthbrookStock</span>
+@*                                         <span class="ml-4 font-medium">All Stock: @item.AllStock</span>
+ *@                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+                                            @if (item.Item == "Rod")
+                                            {
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity (Feet)</div>
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per (Foot)</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per</div>                                                
+                                            }
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Total Price</div>
+                                        </div>
+                                        <div>
+                                            @foreach (var p in item.pricing)
+                                            {
+                                                <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">@p.Quantity</div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.PricePerItem.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalPrice.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes</div>
+
+                                <button @onclick="() => DeleteItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                    <!-- SVG or Font Awesome Icon for Trashcan here -->
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+
+                        }
+                        @foreach (var item in TempTubeItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+                                    <div class="text-lg font-semibold">@item.Item</div>
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity</span>
+                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per UOM</div>                                           
+
+                                        </div>
+                                        <div>
+
+                                            <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+
+                                                <div class="text-xs text-gray-600 dark:text-gray-400">@item.Quantity</div>
+                                                <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                    @item.pricing.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                </div>                     
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes</div>
+
+                                <button @onclick="() => DeleteTubeItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                    <!-- SVG or Font Awesome Icon for Trashcan here -->
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+
+                        }
+                        @foreach (var item in CutPieceTempItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+                                    @if(!item.CutPieceSandQuote.SandingOnly)
+                                    {
+
+                                        <div class="text-lg font-semibold">Cut Piece/Sand</div>
+                                    }
+                                    else
+                                    {
+
+                                        <div class="text-lg font-semibold">Sheet Sanding</div>
+                                    }
+
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity</span>
+                                        <span class="ml-4 font-medium"></span>
+                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Total Price</div>             
+          
+                                        </div>
+                                        <div>
+                                            @foreach (var p in item.pricing)
+                                            {
+                                                <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+                                                    @if(p.IdealYieldStock)
+                                                    {
+                                                        <div class="text-xs text-green-600 dark:text-green-600">@p.Quantity</div>
+
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-xs text-gray-600 dark:text-gray-400">@p.Quantity</div>
+
+                                                    }
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalCustomerCostPerPiece.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalCustomerCostTimesQuantity.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                         
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes, Part LxW: @item.CutPieceSandQuote.Length x @item.CutPieceSandQuote.Width</div>
+                                <br />
+                                <p>
+
+                                    <!-- "Delete" button, remains at the bottom-right corner -->
+                                    <button @onclick="() => DeleteCutPieceItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+
+                                    <!-- "Details" button, slightly shifted left from the bottom-right corner -->
+                                    <button @onclick="() => CutPieceItemDetails(item)" class="absolute bottom-2 right-14 text-blue-500 hover:text-blue-700">
+                                        <!-- Adjust the right-14 to control the shift -->
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </button>
+                                </p>
+
+                            </div>
+                        }
+
+
+                        @foreach (var item in washerTempItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+                                    @if(!string.IsNullOrEmpty(item.washerQuote.SandedSides))
+                                    {
+
+                                        <div class="text-lg font-semibold">Washer/Rings + Sanding</div>
+                                    }
+                                    else
+                                    {
+
+                                        <div class="text-lg font-semibold">Washer/Rings</div>
+                                    }
+
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity</span>
+                                        <span class="ml-4 font-medium"></span>
+                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Total Price</div>                                          
+                                        </div>
+                                        <div>
+                                            @foreach (var p in item.pricing)
+                                            {
+                                                <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">@p.Quantity</div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.PricePerItem.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalPrice.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes</div>                                <br />
+                                <p>
+
+                                    <!-- "Delete" button, remains at the bottom-right corner -->
+                                    <button @onclick="() => DeleteWasherItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+
+
+                                    <!-- "Details" button, slightly shifted left from the bottom-right corner -->
+                                    <button @onclick="() => WasherItemDetails(item)" class="absolute bottom-2 right-14 text-blue-500 hover:text-blue-700">
+                                        <!-- Adjust the right-14 to control the shift -->
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </button>
+                                </p>
+
+                            </div>
+                        }
+
+                        @foreach (var item in grindTempItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+
+
+                                    <div class="text-lg font-semibold">Custom Grinding</div>
+
+
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity (@item.grindQuote.UOM)</span>
+                                        <span class="ml-4 font-medium"></span>
+                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Total Price</div>
+                                        </div>
+                                        <div>
+                                            @foreach (var p in item.pricing)
+                                            {
+                                                <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">@p.Quantity</div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.PricePerItem.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalPrice.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes</div>                                <br />
+                                <p>
+
+                                    <!-- "Delete" button, remains at the bottom-right corner -->
+                                    <button @onclick="() => DeleteGrindItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+
+
+                                    <!-- "Details" button, slightly shifted left from the bottom-right corner -->
+                                    <button @onclick="() => GrindingItemDetails(item)" class="absolute bottom-2 right-14 text-blue-500 hover:text-blue-700">
+                                        <!-- Adjust the right-14 to control the shift -->
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </button>
+                                </p>
+
+                            </div>
+                        }
+
+                        @foreach (var item in CutRodTempItems)
+                        {
+
+                            <div class="relative space-y-2 border p-4 dark:border-gray-600">
+                                <div class="mb-2 flex items-center justify-between">
+                                    <div class="text-lg font-semibold">Cut Rod</div>
+
+                                    <div>
+                                        <span class="font-medium">Quantities: @item.Quantity</span>
+                                        <span class="ml-4 font-medium"></span>
+                                    </div>
+                                </div>
+
+                                <div class="-mx-2 overflow-x-auto">
+                                    <div class="inline-block min-w-full overflow-hidden rounded-lg shadow">
+                                        <div class="flex items-center justify-between bg-gray-100 px-2 py-2 dark:bg-gray-800">
+
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Quantity</div>
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Price Per</div> @* was foot *@
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">Total Price</div>
+                                        </div>
+                                        <div>
+                                            @foreach (var p in item.pricing)
+                                            {
+                                                <div class="flex items-center justify-between border-t border-gray-200 px-2 py-2 dark:border-gray-700">
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">@p.Quantity</div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalCustomerCostPerPiece.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                                                        @p.TotalCustomerCostTimesQuantity.ToString("C", new System.Globalization.CultureInfo("en-US"))
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="text-sm">@item.Attributes</div>
+                                <br />
+                                <p>
+
+                                    <!-- "Delete" button, remains at the bottom-right corner -->
+                                    <button @onclick="() => DeleteCutRodItem(item)" class="absolute bottom-2 right-2 text-red-500 hover:text-red-700">
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+
+                                    <!-- "Details" button, slightly shifted left from the bottom-right corner -->
+                                    <button @onclick="() => CutRodItemDetails(item)" class="absolute bottom-2 right-14 text-blue-500 hover:text-blue-700">
+                                        <!-- Adjust the right-14 to control the shift -->
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </button>
+                                </p>
+
+                            </div>
+                        }
+                        @if (isLoadingSubmission)
+                        {
+                            <button disabled class="flex w-full items-center justify-center bg-green-600 px-4 py-2 text-white dark:bg-green-800">
+                                <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                                </svg>
+                                Loading...
+                            </button>
+                        }
+                        else
+                        {
+                            @*                             <div class="mx-auto mt-10 max-w-md">
+                                <InputFile OnChange="HandleFileSelected" />
+                                @if (!string.IsNullOrEmpty(UploadedFileContent))
+                                {
+                               <div class="mt-4 rounded border p-4">
+                                        <pre class="whitespace-pre-wrap text-sm">Upload Success</pre>
+                                    </div> 
+                                }
+                            </div> *@
+
+                            <div class="row">
+                                <div class="col-12 p-0">
+                                    <div class="dropzone @dropClass rounded">
+                                        <BlazorInputFile.InputFile id="fileInput" multiple title=""
+                                        OnChange="HandleFileInputChange"
+                                        accept="eml"
+                                        @ondragenter="HandleDragEnter"
+                                        @ondragleave="HandleDragLeave" />
+
+                                    </div>
+                                    @if ((fileTypeError || fileSizeError))
+                                    {
+                                        <ul class="validation-errors mb-0">
+                                            @if (fileTypeError)
+                                            {
+                                                <li class="validation-message">Only image files are accepted.</li>
+                                            }
+                                            @if (fileSizeError)
+                                            {
+                                                <li class="validation-message">The max file size is @MaxFileSizeMB MB.</li>
+                                            }
+                                        </ul>
+                                    }
+                                    @if (selectedFiles != null && selectedFiles.Count > 0)
+                                    {
+                                        <div class="col-12">
+                                            <ul>
+                                                @foreach (var file in selectedFiles)
+                                                {
+                                                    <li>
+                                                        @file.Name
+                                                        <button class="btn btn-link text-danger p-0 pl-1" type="button"
+                                                        @onclick="@(e => RemoveFile(file))">
+                                                            <small class="align-text-bottom">Remove</small>
+                                                        </button>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+
+
+                            <button @onclick="@( () => CalculateCart())" class="bg-green-600 text-white px-4 py-2 w-full dark:bg-green-800">
+                                Submit Quote
+                            </button>
+                        }
+
+
+
+                    </div>
+                </div>
+
+                @if (!isLoading)
+                {
+                    <!-- Content for Sheet -->
+                    @if (ActiveTab == "Sheet")
+                    {
+                        <SheetComponent BCItemAttributes="@itemAttributes" Customer="@CustomerNo" SheetOnAdd="HandleSheetQuoteAdded" />
+                    }
+                    <!-- Content for Cut Piece/Sand -->
+                    @if (ActiveTab == "Cut Piece/Sand")
+                    {
+                        <CutPieceSandComponent BCItemAttributes="@itemAttributes" Customer="@CustomerNo" CutPieceSandOnAdd="HandleCutPieceSandQuoteAdded" />
+                    }
+                    @if (ActiveTab == "Rod")
+                    {
+                        <RodComponent rodItemAttributes="@rodItemAttributes" Customer="@CustomerNo" RodOnAdd="HandleRodQuoteAdded" />
+                    }
+                    @if (ActiveTab == "Cut Rod")
+                    {
+
+                        <CutRodComponent rodItemAttributes="@rodItemAttributes" Customer="@CustomerNo" CutRodOnAdd="HandleCutRodQuoteAdded" />
+
+                    }
+                    @if (ActiveTab == "Tube")
+                    {
+                        <TubeComponent Customer="@CustomerNo" TubeOnAdd="HandleTubeQuoteAdded" />
+                    }
+                    @if (ActiveTab == "Cut Tube")
+                    {
+                        <CutTubeComponent />
+                    }
+                    @if (ActiveTab == "Washer")
+                    {
+                        <WasherComponent BCItemAttributes="@itemAttributes" Customer="@CustomerNo" WasherOnAdd="HandleWasherQuoteAdded" />
+                    }
+                    @if (ActiveTab == "Custom Grind")
+                    {
+                        <CustomGrindComponent Customer="@CustomerNo" CustomGrindOnAdd="HandleCustomGrindAdded" />
+                    }
+                    @if (ActiveTab == "AI")
+                    {
+                        <AIComponent Customer="@CustomerNo" WasherOnAdd="HandleWasherQuoteAdded" RodOnAdd="HandleRodQuoteAdded" SheetOnAdd="HandleSheetQuoteAdded" CutRodOnAdd="HandleCutRodQuoteAdded" CutPieceSandOnAdd="HandleCutPieceSandQuoteAdded" />
+                    }
+                    <!-- ... other content components for each tab ... -->
+                }
+                else
+                {
+                    <p>Loading...</p>
+                }
+                @if (isDetailsModalOpen && currentItemForDetails != null)
+                {
+                    <div id="default-modal" tabindex="-1" aria-hidden="true" class="h-modal fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-gray-500 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-80 md:h-full">
+                        <div class="relative h-full w-full max-w-2xl p-4 md:h-auto">
+                            <!-- Modal content -->
+                            <div class="relative rounded-lg bg-white shadow dark:bg-gray-700">
+                                <!-- Modal header -->
+                                <div class="flex items-center justify-between rounded-t border-b p-5 dark:border-gray-600">
+                                    @if(!currentItemForDetails.CutPieceSandQuote.SandingOnly)
+                                    {
+                                        <h3 class="text-xl font-medium text-gray-900 dark:text-white">
+                                            Cut Piece/Sand Details
+                                        </h3>
+                                    }
+                                    else
+                                    {
+                                        <h3 class="text-xl font-medium text-gray-900 dark:text-white">
+                                            Sheet Sanding
+                                        </h3>
+                                    }
+                                    <!---Change this to export PDF and show a print option-->
+                                    @*                                     <button @onclick="CloseModal" type="button" class="...">
+                                        <!-- Close icon SVG -->
+                                    </button> *@
+                                    @*                                     <button @onclick="ExportAsPDF" class="rounded-lg bg-blue-700 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none">Export as PDF</button>
+ *@
+                                </div>
+                                <!-- Modal body -->
+                                <div class="max-h-96 space-y-6 overflow-auto p-6">
+                                    <!-- Quote Details -->
+                                    <div>
+                                        <h4 class="font-semibold">Quote Details:</h4>
+                                        <div class="grid grid-cols-2 gap-4">
+
+                                            @if (!currentItemForDetails.CutPieceSandQuote.SandingOnly)
+                                            {
+                                                <div>Length: @currentItemForDetails.CutPieceSandQuote.Length</div>
+                                                <div>Length +/-: +@currentItemForDetails.CutPieceSandQuote.LengthPlus / -@currentItemForDetails.CutPieceSandQuote.LengthMinus</div>
+                                                <div>Width: @currentItemForDetails.CutPieceSandQuote.Width</div>
+                                                <div>Width +/-: +@currentItemForDetails.CutPieceSandQuote.WidthPlus / -@currentItemForDetails.CutPieceSandQuote.WidthMinus</div>
+                                                <div>Kerf: @currentItemForDetails.CutPieceSandQuote.Kerf</div>
+                                            }
+                                            <div>Color: @currentItemForDetails.CutPieceSandQuote.Color</div>
+                                            <div>Sanded Thickness: @currentItemForDetails.CutPieceSandQuote.SandedThickness</div>
+                                            <div>Thick +/-: +@currentItemForDetails.CutPieceSandQuote.ThickPlus / -@currentItemForDetails.CutPieceSandQuote.ThickMinus</div>
+                                            <div>Grain Direction: @currentItemForDetails.CutPieceSandQuote.GrainDirection</div>
+                                            <div>Sanded Sides: @currentItemForDetails.CutPieceSandQuote.SandedSides</div>
+                                            <div>Masking Sides: @currentItemForDetails.CutPieceSandQuote.MaskingSides</div>
+                                            <div>Per Piece Weight: @currentItemForDetails.pricing.FirstOrDefault().PerPieceWeight</div>
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Pricing Details -->
+                                    @if (currentItemForDetails.pricing != null && currentItemForDetails.pricing.Any())
+                                    {
+                                        <div>
+                                            @{
+                                                int counter = 0; // Counter for alternating background
+                                            }
+                                            @foreach (var pricing in currentItemForDetails.pricing)
+                                            {
+                                                <div class="@((counter % 2 == 0) ? "bg-gray-100 dark:bg-gray-800" : "bg-white dark:bg-gray-700") p-4">
+
+
+                                                    <div class="flex items-center justify-between">
+                                                        <h4 class="text-lg font-semibold">Quantity of @pricing.Quantity:</h4>
+                                                        @if (!currentItemForDetails.CutPieceSandQuote.SandingOnly)
+                                                        {
+                                                            <a href="@pricing.PDF" target="_blank" class="inline-flex items-center justify-center text-red-500 hover:text-red-700" style="cursor: pointer;">
+                                                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 10h10m-10 4h10m-10 4h6"></path>
+                                                                </svg>
+                                                            </a>
+                                                        }
+                                                    </div>
+                                                    <!-- Using an anchor tag styled as a button -->
+
+                                                    <div class="grid grid-cols-2 gap-4">
+                                                        <h4 class="font-semibold">Pricing Details:</h4>
+                                                        <div>Total Cost Per Piece: @pricing.TotalCustomerCostPerPiece.ToString("C")</div>
+                                                        <div>Total Cost: @pricing.TotalCustomerCostTimesQuantity.ToString("C")</div>
+                                                        <div>Stock Total: @pricing.StockTotal.ToString("C")</div>
+                                                        <div>Discount Percentage: @pricing.DiscountPercentage %</div>
+                                                        <div>Total Weight: @pricing.TotalQuantityWeight</div>
+
+                                                        @if (!currentItemForDetails.CutPieceSandQuote.SandingOnly)
+                                                        {
+                                                            <div>Rebate Total: @pricing.RebateTotal.ToString("C")</div>
+                                                            <div>Cut Cost Total: @pricing.CutCostTotal.ToString("C")</div>
+                                                        }
+
+                                                        <div>Sanding Total: @pricing.SandingTotal.ToString("C")</div>
+                                                        <div>Masking Total: @pricing.MaskingTotal.ToString("C")</div>
+                                                    </div>
+                                                    @if (pricing.StockUsed != null && pricing.StockUsed.Any())
+                                                    {
+                                                        <div>
+                                                            <h5 class="mt-2 font-semibold">Stock Used:</h5>
+                                                            @foreach (var stock in pricing.StockUsed)
+                                                            {
+                                                                @if(pricing.IdealYieldStock)
+                                                                {
+                                                                    var stockqty = stocksForQuoteCutSand.Where(x => x.Id == currentItemForDetails.Id && x.StockSku == stock.StockSku && x.StockQtyUsed == stock.StockQty && stock.IdealYieldStock == true).FirstOrDefault();
+                                                                    <div>
+                                                                        SKU: @stock.StockSku, L: @stock.Length, W: @stock.Width, Qty: @(stock.StockQty == 0 ? 1 : stock.StockQty), Northbrook Stock Qty: @(stockqty?.StockNorthbrook != null && stockqty.StockNorthbrook != 0 ? stockqty.StockNorthbrook : 0)@* ,All Stock Qty: @(stockqty?.StockAll != null && stockqty.StockAll != 0 ? stockqty.StockAll : 0) *@
+                                                                        ,     Ideal Yield: @(stockqty?.IdealYield != null && stockqty.IdealYield != 0 ? stockqty.IdealYield : 0)
+                                                                    </div>
+                                                                }
+                                                                else
+                                                                {
+                                                                    var stockqty = stocksForQuoteCutSand.Where(x => x.Id == currentItemForDetails.Id && x.StockSku == stock.StockSku && x.StockQtyUsed == stock.StockQty && stock.IdealYieldStock == false).FirstOrDefault();
+                                                                    <div>
+                                                                        SKU: @stock.StockSku, L: @stock.Length, W: @stock.Width, Qty: @(stock.StockQty == 0 ? 1 : stock.StockQty),     Northbrook Stock Qty: @(stockqty?.StockNorthbrook != null && stockqty.StockNorthbrook != 0 ? stockqty.StockNorthbrook : 0)@* ,All Stock Qty: @(stockqty?.StockAll != null && stockqty.StockAll != 0 ? stockqty.StockAll : 0) *@
+                                                                        ,     Ideal Yield: @(stockqty?.IdealYield != null && stockqty.IdealYield != 0 ? stockqty.IdealYield : 0) </div>
+                                                                }
+
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                                counter++; // Increment the counter after each iteration
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <!-- Modal footer -->
+                                <div class="flex items-center space-x-2 rounded-b border-t border-gray-200 p-6 dark:border-gray-600">
+                                    <button @onclick="CloseModal" type="button" class="rounded-lg bg-blue-700 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (isRodDetailsModalOpen && currentRodItemForDetails != null)
+                {
+                    <div id="default-modal" tabindex="-1" aria-hidden="true" class="h-modal fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-gray-500 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-80 md:h-full">
+                        <div class="relative h-full w-full max-w-2xl p-4 md:h-auto">
+                            <!-- Modal content -->
+                            <div class="relative rounded-lg bg-white shadow dark:bg-gray-700">
+                                <!-- Modal header -->
+                                <div class="flex items-center justify-between rounded-t border-b p-5 dark:border-gray-600">
+                                    <h3 class="text-xl font-medium text-gray-900 dark:text-white">
+                                        Cut Rod Details
+                                    </h3>
+
+                                </div>
+                                <!-- Modal body -->
+                                <div class="max-h-96 space-y-6 overflow-auto p-6">
+                                    <!-- Quote Details -->
+                                    <div>
+                                        <h4 class="font-semibold">Quote Details:</h4>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>Grade: @currentRodItemForDetails.CutRodQuote.GradeDropdown</div>
+                                            <div>Diameter: @currentRodItemForDetails.CutRodQuote.DiameterDropdown</div>
+                                            <div>Length: @currentRodItemForDetails.CutRodQuote.Length " </div>
+                                            <div>Length +/-: +@currentRodItemForDetails.CutRodQuote.LengthPlus / -@currentRodItemForDetails.CutRodQuote.LengthMinus</div>
+                                            <div>Color: @currentRodItemForDetails.CutRodQuote.Color</div>
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Pricing Details -->
+                                    @if (currentRodItemForDetails.pricing != null && currentRodItemForDetails.pricing.Any())
+                                    {
+                                        <div>
+                                            @{
+                                                int counter = 0; // Counter for alternating background
+                                            }
+                                            @foreach (var pricing in currentRodItemForDetails.pricing)
+                                            {
+                                                <div class="@((counter % 2 == 0) ? "bg-gray-100 dark:bg-gray-800" : "bg-white dark:bg-gray-700") p-4">
+
+
+                                                    <div class="flex items-center justify-between">
+                                                        <h4 class="text-lg font-semibold">Quantity of @pricing.Quantity:</h4>
+
+                                                    </div>
+                                                    <!-- Using an anchor tag styled as a button -->
+
+                                                    <div class="grid grid-cols-2 gap-4">
+                                                        <h4 class="font-semibold">Pricing Details:</h4>
+                                                        <div>Total Cost Per: @pricing.TotalCustomerCostPerPiece.ToString("C")</div>
+                                                        <div>Total Cost: @pricing.TotalCustomerCostTimesQuantity.ToString("C")</div>
+                                                        <div>Discount Percentage: @pricing.DiscountPercentage %</div>
+
+                                                        <div>Stock Total: @pricing.StockTotal.ToString("C")</div>
+                                                        @if (pricing.RebateTotal > 0)
+                                                        {
+                                                            <div>Rebate Total: @pricing.RebateTotal.ToString("C")</div>
+                                                        }
+
+                                                        <div>Cut Cost Total: @pricing.CutCostTotal.ToString("C")</div>
+
+                                                    </div>
+                                                    @if (pricing.StockUsed != null && pricing.StockUsed.Any())
+                                                    {
+                                                        <div>
+                                                            <h5 class="mt-2 font-semibold">Stock Used:</h5>
+                                                            @foreach (var stock in pricing.StockUsed)
+                                                            {
+
+                                                                string roduom = stock.UOM;
+
+
+                                                                var stockqty = stocksForQuoteCutSand.Where(x => x.Id == currentRodItemForDetails.Id && x.StockSku == stock.StockSku && x.StockQtyUsed == stock.StockQty).FirstOrDefault();
+                                                                <div>SKU: @stock.StockSku, L: @stock.Length, W: @stock.Width, Qty  (@roduom): @(stock.StockQty == 0 ? 1 : stock.StockQty), Northbrook Stock Qty (@roduom): @stockqty.StockNorthbrook</div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                                counter++; // Increment the counter after each iteration
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <!-- Modal footer -->
+                                <div class="flex items-center space-x-2 rounded-b border-t border-gray-200 p-6 dark:border-gray-600">
+                                    <button @onclick="CloseRodModal" type="button" class="rounded-lg bg-blue-700 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (isWasherDetailsModalOpen && washerDetails != null)
+                {
+                    <div id="default-modal" tabindex="-1" aria-hidden="true" class="h-modal fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-gray-500 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-80 md:h-full">
+                        <div class="relative h-full w-full max-w-2xl p-4 md:h-auto">
+                            <!-- Modal content -->
+                            <div class="relative rounded-lg bg-white shadow dark:bg-gray-700">
+                                <!-- Modal header -->
+                                <div class="flex items-center justify-between rounded-t border-b p-5 dark:border-gray-600">
+                                    <h3 class="text-xl font-medium text-gray-900 dark:text-white">
+                                        Washer/Ring Details
+                                    </h3>
+
+                                </div>
+                                <!-- Modal body -->
+                                <div class="max-h-96 space-y-6 overflow-auto p-6">
+                                    <!-- Quote Details -->
+                                    <div>
+                                        <h4 class="font-semibold">Quote Details:</h4>
+                                        <div class="grid grid-cols-2 gap-4">
+
+                                            <div>Sheet Size: @washerDetails.washerQuote.SheetSize</div>
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Pricing Details -->
+                                    @if (washerDetails.pricing != null && washerDetails.pricing.Any())
+                                    {
+                                        <div>
+                                            @{
+                                                int counter = 0; // Counter for alternating background
+                                            }
+                                            @foreach (var pricing in washerDetails.pricing)
+                                            {
+                                                <div class="@((counter % 2 == 0) ? "bg-gray-100 dark:bg-gray-800" : "bg-white dark:bg-gray-700") p-4">
+
+
+                                                    <div class="flex items-center justify-between">
+                                                        <h4 class="text-lg font-semibold">Quantity of @pricing.Quantity:</h4>
+
+                                                    </div>
+                                                    <!-- Using an anchor tag styled as a button -->
+
+                                                    <div class="grid grid-cols-2 gap-4">
+                                                        <h4 class="font-semibold">Pricing Details:</h4>
+                                                        <div>Total Cost Per: @pricing.PricePerItem.ToString("C")</div>
+                                                        <div>Total Cost: @pricing.TotalPrice.ToString("C")</div>
+                                                        <div>Discount Percentage: @pricing.DiscountPercentage %</div>
+                                                        <div>Sanding Total: @pricing.SandingTotal.ToString("C")</div>
+                                                        <div>Machine Labor Cost: @pricing.MachineCost.ToString("C")</div>
+                                                        <div>Material Cost: @pricing.MaterialCost.ToString("C")</div>
+                                                        <div>Cut Charge: @pricing.CutCharge.ToString("C")</div>
+                                                        <div>Panel Size: @pricing.PanelSize </div>
+                                                        <div>Panel Yield: @pricing.PanelYield</div>
+                                                        <div>Full Sheets Needed: @pricing.TotalSheets </div>
+                                                        <div>Total Panels Used: @pricing.PanelsUsed</div>
+                                                        <div>Margin Cost: @pricing.Margin</div>
+                                                        <div>Machine Type: @washerDetails.MachineType</div>
+                                                        <div>Panels Per Full Sheet: @washerDetails.panelsPerFullSheet</div>
+                                                    </div>
+
+                                                </div>
+                                                counter++; // Increment the counter after each iteration
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <!-- Modal footer -->
+                                <div class="flex items-center space-x-2 rounded-b border-t border-gray-200 p-6 dark:border-gray-600">
+                                    <button @onclick="CloseWasherModal" type="button" class="rounded-lg bg-blue-700 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (isGrindingDetailsModalOpen && grindDetails != null)
+                {
+                    <div id="default-modal" tabindex="-1" aria-hidden="true" class="h-modal fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-gray-500 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-80 md:h-full">
+                        <div class="relative h-full w-full max-w-2xl p-4 md:h-auto">
+                            <!-- Modal content -->
+                            <div class="relative rounded-lg bg-white shadow dark:bg-gray-700">
+                                <!-- Modal header -->
+                                <div class="flex items-center justify-between rounded-t border-b p-5 dark:border-gray-600">
+                                    <h3 class="text-xl font-medium text-gray-900 dark:text-white">
+                                        Custom Grinded                                    </h3>
+
+                                </div>
+                                <!-- Modal body -->
+                                <div class="max-h-96 space-y-6 overflow-auto p-6">
+                                    <!-- Quote Details -->
+                                    <div>
+                                        <h4 class="font-semibold">Quote Details:</h4>
+                                        <div class="grid grid-cols-2 gap-4">
+
+                                            @*     <div>Grind Material: @grindDetails.Item</div> *@
+
+                                        </div>
+                                    </div>
+
+                                    <!-- Pricing Details -->
+                                    @if (grindDetails.pricing != null && grindDetails.pricing.Any())
+                                    {
+                                        <div>
+                                            @{
+                                                int counter = 0; // Counter for alternating background
+                                            }
+                                            @foreach (var pricing in grindDetails.pricing)
+                                            {
+                                                <div class="@((counter % 2 == 0) ? "bg-gray-100 dark:bg-gray-800" : "bg-white dark:bg-gray-700") p-4">
+
+
+                                                    <div class="flex items-center justify-between">
+                                                        <h4 class="text-lg font-semibold">Quantity of @pricing.Quantity:</h4>
+
+                                                    </div>
+                                                    <!-- Using an anchor tag styled as a button -->
+
+                                                    <div class="grid grid-cols-2 gap-4">
+                                                        <h4 class="font-semibold">Pricing Details:</h4>
+                                                        <div>Total Cost Per: @pricing.PricePerItem.ToString("C")</div>
+                                                        <div>Total Cost: @pricing.TotalPrice.ToString("C")</div>
+                                                        <div>Labor Cost: @pricing.LaborCost.ToString("C")</div>
+                                                        <div>Stock Price Per: @pricing.StockPrice.ToString("C")</div>
+                                                        <div>Length: @grindDetails.grindQuote.Length</div>
+                                                        <div>FT/EA: @grindDetails.grindQuote.UOM</div>
+                                                        <div>+/-: @grindDetails.grindQuote.LengthPlus / @grindDetails.grindQuote.LengthMinus</div>
+                                                        <div>Stock Price Total: @pricing.TotalStockPrice.ToString("C")</div>
+                                                        <div>Ideal Yield: @pricing.IdealYield</div>
+                                                        <div>Total Rods Required: @pricing.TotalRodsRequired</div>
+
+                                                    </div>
+
+                                                </div>
+                                                counter++; // Increment the counter after each iteration
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <!-- Modal footer -->
+                                <div class="flex items-center space-x-2 rounded-b border-t border-gray-200 p-6 dark:border-gray-600">
+                                    <button @onclick="CloseGrindingModal" type="button" class="rounded-lg bg-blue-700 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-blue-800 focus:outline-none">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        </div>
+
+    }
+
+}
+else
+
+{
+    <div class="max-w-1050 min-w-970 container mx-auto p-4 dark:bg-gray-700">
+        <div aria-label="Loading..." role="status" class="flex items-center space-x-2">
+            <svg class="h-20 w-20 animate-spin stroke-gray-500" viewBox="0 0 256 256">
+                <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+            </svg>
+            <span class="text-4xl font-medium text-gray-500">Loading...</span>
+        </div>
+    </div>
+}
+
+
+<div id="captureArea" style="position: absolute; left: -5000px; top: 0; width: auto; height: auto;"></div>
+
+
+@code {
+    private string UploadedFileContent { get; set; } = string.Empty;
+
+    private Submission submission;
+    private string ActiveTab { get; set; } = "Sheet";
+    private string PageTab { get; set; } = "Sheet";
+    public string CustomerNo { get; set; }
+    public string CustomerName { get; set; }
+    public QuoteExport quoteExport = new QuoteExport();
+    public List<TempItem> TempItems = new List<TempItem>();
+    public List<TempTubeItem> TempTubeItems = new List<TempTubeItem>();
+
+    public List<CutPieceSandTempItem> CutPieceTempItems = new List<CutPieceSandTempItem>();
+    public List<CutRodTempItem> CutRodTempItems = new List<CutRodTempItem>();
+    bool invalidNo = false;
+    bool invalidName = false;
+    private List<Customer> customerSearchResults = new List<Customer>();
+    private string selectedCustomerNo;
+    private List<ItemAttributes> itemAttributes = new List<ItemAttributes>();
+    private List<ItemAttributes> rodItemAttributes = new List<ItemAttributes>();
+    bool isLoading = true;
+    private int Stock = 0;
+    private bool DataLoading = true;
+
+    private bool isCustomer = true;
+    private string ValidCustomerColor = "";
+
+    private Timer _debounceTimer;
+
+    //cutpiecesand modal details
+    private bool isDetailsModalOpen = false;
+    private CutPieceSandTempItem currentItemForDetails = null;
+    private CutRodTempItem currentRodItemForDetails = null;
+
+    private bool isLoadingSubmission = false;
+    private bool isAuthenticated = false;
+
+    private bool isAtlasEmployee = false;
+    private List<StockUsedForQuote> stocksForQuoteCutSand = new List<StockUsedForQuote>();
+
+    private bool isRodDetailsModalOpen = false;
+    private string UserEmail = "";
+    List<WasherTempItem> washerTempItems = new List<WasherTempItem>();
+    List<GrindTempItem> grindTempItems = new List<GrindTempItem>();
+
+    WasherTempItem washerDetails = new WasherTempItem();
+    bool isWasherDetailsModalOpen = false;
+    bool isGrindingDetailsModalOpen = false;
+    GrindTempItem grindDetails = new GrindTempItem();
+
+
+
+    public class TempItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public List<QuantityPricing> pricing { get; set; }
+        public int NorthbrookStock { get; set; }
+        public int AllStock { get; set; }
+    }
+    public class TempTubeItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public decimal pricing { get; set; }
+    }
+    public class CutPieceSandTempItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public CutPieceSandQuote CutPieceSandQuote { get; set; }
+        public List<CutPieceSandPricing> pricing { get; set; }
+    }
+    public class CutRodTempItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public CutRodQuote CutRodQuote { get; set; }
+        public List<CutRodPricing> pricing { get; set; }
+    }
+    public class WasherTempItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public WasherQuote washerQuote { get; set; }
+        public List<WasherQuantityPricing> pricing { get; set; }
+        public int Stock { get; set; }
+        public string MachineType { get; set; }
+        public int panelsPerFullSheet { get; set; }
+    }
+    public class GrindTempItem
+    {
+        public Guid Id { get; set; }
+        public string Item { get; set; }
+        public string Quantity { get; set; }
+        public string Attributes { get; set; }
+        public string ItemType { get; set; }
+        public string Material { get; set; }
+        public CustomGrindQuote grindQuote { get; set; }
+        public List<GrindPricing> pricing { get; set; }
+        public int Stock { get; set; }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+
+
+    }
+    private void ClearCustomerSearchResults()
+    {
+        customerSearchResults.Clear();
+    }
+    private async Task CheckAuthentication()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
+        var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
+        var status = await WorkOsAuthService.IsUserAuthenticated(ipAddress, userAgent);
+        switch (status)
+        {
+            case AuthenticationStatus.Authenticated:
+                isAuthenticated = true;
+                var userdetails = await WorkOsAuthService.GetUserDetails();
+                UserEmail = userdetails.email;
+                break;
+            case AuthenticationStatus.NotAuthenticated:
+                // Explicitly handle not authenticated case
+                NavigationManager.NavigateTo("/login", true);
+                break;
+            case AuthenticationStatus.Error:
+                // Handle error or system issue
+                NavigationManager.NavigateTo("/login", true);
+                break;
+        }
+    }
+    private async Task CheckCustomerInformation()
+    {
+        var atlas = await WorkOsAuthService.GetAtlasStatus();
+        isAtlasEmployee = atlas;
+        if (!isAtlasEmployee)
+        {
+            isCustomer = true;
+            var details = await WorkOsAuthService.GetUserCompanyDetails();
+            if (details != null)
+            {
+                if (!string.IsNullOrEmpty(details.CompanyNumber))
+                {
+                    CustomerNo = details.CompanyNumber;
+                    CustomerName = details.CompanyName;
+                    quoteExport.CustomerNumber = CustomerNo;
+                }
+                else
+                {
+                    await WorkOsAuthService.Logout();
+                    NavigationManager.NavigateTo("/login", true);
+                }
+            }
+            else
+            {
+                await WorkOsAuthService.Logout();
+                NavigationManager.NavigateTo("/login", true);
+            }
+        }
+        else
+        {
+            isCustomer = false;
+        }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CheckAuthentication();
+            if (isAuthenticated)
+            {
+                await CheckCustomerInformation();
+                itemAttributes = await transform.TransformBCItemAttributes("Sheet");
+                // Define the desired sizes and exclude "48x48"
+                var desiredSizes = new HashSet<string> { "36x48", "96x48", "48x48", "48x36", "48x96" };
+
+                // Filter out items that don't match the desired sizes and exclude "48x48"
+                // itemAttributes = itemAttributes
+                //     .Where(item => Convert.ToInt32(item.WidthIn) > 0 && Convert.ToInt32(item.LengthIn) > 0) // Ensure both Width and Length are greater than 0
+                //     .Where(item => desiredSizes.Contains($"{item.LengthIn}x{item.WidthIn}")) // Keep only desired sizes
+                //     .Distinct() // Remove duplicates
+                //     .OrderBy(item => $"{item.LengthIn}x{item.WidthIn}") // Optionally order by size string
+                //     .ToList();
+
+                itemAttributes = itemAttributes
+    .Where(item => int.TryParse(item.WidthIn.ToString(), out int width) && width > 0 &&
+               int.TryParse(item.LengthIn.ToString(), out int length) && length > 0) // Ensure both Width and Length are greater than 0
+    .Where(item => desiredSizes.Contains($"{item.LengthIn}x{item.WidthIn}")) // Keep only desired sizes
+    .Distinct()
+    .OrderBy(item => $"{item.LengthIn}x{item.WidthIn}") // Optionally order by size string
+    .ToList();
+
+
+                isLoading = false; // Data is loaded
+                DataLoading = false;
+                submission =  new Submission();
+                StateHasChanged();
+            }
+        }
+    }
+    private string GetInputClassNo()
+    {
+        return $"border-2 {(invalidNo ? "border-red-500" : "border-indigo-600")}";
+    }
+    async Task CalculateCart()
+    {
+        isLoadingSubmission = true;
+        var error = await ErrorHandling();
+        if (error)
+        {
+            isLoadingSubmission = false;
+            return;
+        }
+
+        try
+        {
+            quoteExport.UserEmail = UserEmail;
+            quoteExport.DateCreated = DateTime.Now;
+            quoteExport.CustomerNumber = CustomerNo;
+            foreach(var item in quoteExport.CutPieceSandQuote)
+            {
+                if (item.CustomerMaterialOnly)
+                {
+                    //item.Color = string.Empty;
+                    //item.Grade = string.Empty;
+                    foreach (var i in item.CutPieceSandQuantityPricing)
+                    {
+                        foreach (var s in i.StockUsed)
+                        {
+                            s.StockSku = string.Empty;
+                        }
+                    }
+                }
+            }
+            if (UserEmail.Contains("@acculam.com") || UserEmail.Contains("@nanonets.com"))
+            {
+                Guid g = Guid.NewGuid();
+                string mainJson = JsonConvert.SerializeObject(quoteExport);
+                submission.Createdon = DateTime.Now;
+                submission.CustomerNumber = quoteExport.CustomerNumber;
+                submission.CustomerName = CustomerName;
+                submission.QuoteNo = g.ToString();
+                submission.Username = quoteExport.UserEmail;
+                submission.Cart = mainJson;
+                submission.Email = UploadedFileContent;
+                await _atlasManagementService.SaveCartToDB(submission);
+
+                await JSRuntime.InvokeVoidAsync("alert", $"Submission disabled. To continue start a new quote. Your cart reference is: {g}");
+                submission = new Submission();
+                isLoadingSubmission = false;
+                return;
+            }
+            var responseContent = await _Authentication.PostCartResults(quoteExport);
+            if(responseContent.IsSuccess)
+            {
+                string mainJson = JsonConvert.SerializeObject(quoteExport);
+                var result = JsonConvert.DeserializeObject<CreatedResponse>(responseContent.ResponseContent);
+                submission.Createdon = DateTime.Now;
+                submission.CustomerNumber = quoteExport.CustomerNumber;
+                submission.CustomerName = CustomerName;
+                submission.QuoteNo = result.QuoteNo;
+                submission.Username = quoteExport.UserEmail;
+                submission.Cart = mainJson;
+                submission.Email = UploadedFileContent;
+                await _atlasManagementService.SaveCartToDB(submission);
+
+                await JSRuntime.InvokeVoidAsync("alert", $"Quote created successfully. Quote: {result.QuoteNo}");
+                submission = new Submission();
+                await NewQuote(true);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Quote has not been submitted to Business Central. {responseContent.IsSuccess} - {responseContent.ResponseContent}");
+
+            }
+            isLoadingSubmission = false;
+        }
+        catch (Exception ex)
+        {
+            isLoadingSubmission = false;
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+        }
+        // var json = System.Text.Json.JsonSerializer.Serialize(quoteExport);
+    }
+    async void CustNoInputChangeHandler(FocusEventArgs e)
+    {
+        var val = CustomerNo;
+        CustomerNo = val;
+        await Task.Run(() => GetCustomerByNo());
+    }
+    async Task CustNameInputChangeHandler(ChangeEventArgs e)
+    {
+        CustomerName = e.Value.ToString();
+        if (CustomerName.Length >= 3)
+        {
+            _debounceTimer?.Dispose();  // Dispose the existing timer
+            _debounceTimer = new Timer(_ =>
+            {
+                // Dispatch the GetCustomerByName method on the UI thread
+                InvokeAsync(async () =>
+                {
+                    await GetCustomerByName();
+                });
+            }, null, 2000, Timeout.Infinite);  // 2 seconds delay
+        }
+        else if (CustomerName.Length == 0)
+        {
+            customerSearchResults.Clear();
+            StateHasChanged();
+        }
+    }
+    async void GetCustomerByNo()
+    {
+        var result = await Task.Run(() => _Authentication.GetCustomerByNo(CustomerNo));
+        await Task.CompletedTask;
+        if (result != null)
+        {
+            if (result.value.Count > 0)
+            {
+                invalidNo = false;
+                CustomerName = result.value.FirstOrDefault().Name;
+                ValidCustomerColor = "Green";
+            }
+            else
+            {
+                invalidNo = true;
+                ValidCustomerColor = "Red";
+            }
+            await InvokeAsync(() =>
+            {
+                StateHasChanged();
+            });
+        }
+    }
+    async Task GetCustomerByName()
+    {
+        var result = await _Authentication.GetCustomerByName(CustomerName);
+        if (result?.value != null)
+        {
+            customerSearchResults = result.value.Take(30).ToList();
+            invalidName = !customerSearchResults.Any();
+        }
+        else
+        {
+            customerSearchResults.Clear();
+            invalidName = true;
+        }
+        StateHasChanged();
+    }
+    void SelectCustomer(Customer customer)
+    {
+        CustomerNo = customer.No;
+        selectedCustomerNo = customer.No;
+        CustomerName = customer.Name;
+        customerSearchResults.Clear();
+        invalidNo = false;
+        GetInputClassNo();
+        StateHasChanged();
+    }
+    private async Task HandleSheetQuoteAdded(SheetQuote sheetQuote)
+    {
+        var itemDetails = await _Authentication.GetStandardItemByNo(sheetQuote.ItemNo);
+        var itemStock = itemDetails.FirstOrDefault();
+
+
+        quoteExport.SheetQuote.Add(sheetQuote);
+        int invCtrl = 0;  // Default value
+        int invCtrlNorthBrook = 0;
+        if (itemStock != null)
+        {
+            int.TryParse(itemStock.InventoryCtrl.ToString(), out invCtrl);
+            int.TryParse(itemStock.itemAvailInNorthAmerica.ToString(), out invCtrlNorthBrook);
+        }
+
+        TempItems.Add(new TempItem
+            {
+                Id = sheetQuote.Id,
+                Item = "Sheet",
+                Quantity = sheetQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Thickness: {1}, Size: {2},  Color: {3}", sheetQuote.Grade, sheetQuote.Thickness, sheetQuote.Size, sheetQuote.Color),
+                pricing = sheetQuote.Pricing,
+                AllStock = invCtrl,
+                NorthbrookStock = invCtrlNorthBrook
+            });
+        // Any additional logic you need after adding a quote
+    }
+    private async Task HandleWasherQuoteAdded(WasherQuote washerQuote)
+    {
+        var itemDetails = await _Authentication.GetStandardItemByNo(washerQuote.ItemNo);
+        var itemStock = itemDetails.FirstOrDefault();
+
+
+        quoteExport.WasherQuote.Add(washerQuote);
+        washerTempItems.Add(new WasherTempItem
+            {
+                Id = washerQuote.Id,
+                Item = "Washer/Rings",
+                Quantity = washerQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Thickness: {1}, Size: {2},  Color: {3}", washerQuote.Grade, washerQuote.Thickness, washerQuote.Size, washerQuote.Color),
+                pricing = washerQuote.Pricing,
+                washerQuote = washerQuote,
+                MachineType = washerQuote.MachineType,
+                panelsPerFullSheet = washerQuote.Pricing.FirstOrDefault().PanelsPerFullSheet
+            });
+
+    }
+    private async Task HandleCustomGrindAdded(CustomGrindQuote grindQuote)
+    {
+        var itemDetails = await _Authentication.GetStandardItemByNo(grindQuote.ItemNo);
+        var itemStock = itemDetails.FirstOrDefault();
+
+
+        quoteExport.CustomGrindQuote.Add(grindQuote);
+        grindTempItems.Add(new GrindTempItem
+            {
+                Id = grindQuote.Id,
+                Item = "Custom Grinded",
+                Quantity = grindQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Diameter: {1}, Ground Diameter: {2},  Color: {3} UOM: {4}", grindQuote.GradeDropdown, grindQuote.DiameterDropdown, grindQuote.GroundDiameter, grindQuote.Color, grindQuote.UOM),
+                pricing = grindQuote.Pricing,
+                grindQuote = grindQuote
+            });
+
+    }
+    private async Task HandleCutPieceSandQuoteAdded(CutPieceSandQuote cutPieceSandQuote)
+    {
+        //stocksForQuoteCutSand
+        quoteExport.CutPieceSandQuote.Add(cutPieceSandQuote);
+        CutPieceTempItems.Add(new CutPieceSandTempItem
+            {
+                Id = cutPieceSandQuote.Id,
+                Item = "CutPieceSand",
+                Quantity = cutPieceSandQuote.Quantity ,
+                Attributes = string.Format("Grade: {0}, Thickness: {1}, Size: {2},  Color: {3}", cutPieceSandQuote.Grade, cutPieceSandQuote.Thickness, cutPieceSandQuote.Size, cutPieceSandQuote.Color),
+                pricing = cutPieceSandQuote.CutPieceSandQuantityPricing,
+                CutPieceSandQuote = cutPieceSandQuote
+            });
+        // Any additional logic you need after adding a quote
+        foreach(var i in cutPieceSandQuote.CutPieceSandQuantityPricing)
+        {
+            if (cutPieceSandQuote.CutPieceSandQuantityPricing.Any())
+            {
+                foreach (var s in i.StockUsed)
+                {
+                    if (i.StockUsed.Any())
+                    {
+                        try
+                        {
+                            var sku = s.StockSku.Replace("-", "/");
+                            //var item = await _Authentication.GetStandardItemForStockByNo(sku);
+                            var item = await _Authentication.GetStandardItemByNo(sku);
+                            if (item.Any())
+                            {
+                                var single = item.FirstOrDefault();
+
+                                var stock = new StockUsedForQuote
+                                    {
+                                        Id = cutPieceSandQuote.Id,
+                                        StockNorthbrook = (int)single.itemAvailInNorthAmerica,
+                                        StockAll = (int)single.InventoryCtrl,
+                                        StockQtyUsed = s.StockQty,
+                                        StockSku = s.StockSku,
+                                        IdealYield = s.IdealYield
+                                    };
+                                stocksForQuoteCutSand.Add(stock);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                        }
+                    }
+                }
+            }
+        }
+    }  
+    private async Task HandleRodQuoteAdded(RodQuote rodQuote)
+    {
+        var itemDetails = await _Authentication.GetStandardItemByNo(rodQuote.ItemNo);
+        var itemStock = itemDetails.FirstOrDefault();
+
+        TempItems.Add(new TempItem
+            {
+                Id = rodQuote.Id,
+                Item = "Rod",
+                Quantity = rodQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Diameter: {1}", rodQuote.GradeDropdown, rodQuote.DiameterDropdown),
+                pricing = rodQuote.Pricing,
+                AllStock = Convert.ToInt32(itemStock.InventoryCtrl),
+                NorthbrookStock = Convert.ToInt32(itemStock.itemAvailInNorthAmerica)
+            });
+        //stocksForQuoteCutSand
+        quoteExport.RodQuote.Add(rodQuote);        
+        // Any additional logic you need after adding a quote
+
+    }
+    private async Task HandleTubeQuoteAdded(TubeQuote tubeQuote)
+    {
+
+
+        TempTubeItems.Add(new TempTubeItem
+            {
+                Id = tubeQuote.TubeID,
+                Item = "Tube",
+                Quantity = tubeQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Length: {1}, ID: {2}, OD: {3}, UOM: {4}, Color: {5}, Tube Type: {6} ", tubeQuote.Grade, tubeQuote.Length, tubeQuote.ID, tubeQuote.OD, tubeQuote.UOM, tubeQuote.Color, tubeQuote.TubeType),
+                pricing = tubeQuote.PriceUOM
+            });
+        //stocksForQuoteCutSand
+        quoteExport.TubeQuote.Add(tubeQuote);
+        // Any additional logic you need after adding a quote
+
+    }
+
+    private async Task HandleCutRodQuoteAdded(CutRodQuote cutRodQuote)
+    {
+        //stocksForQuoteCutSand
+        quoteExport.CutRodQuote.Add(cutRodQuote);
+        CutRodTempItems.Add(new CutRodTempItem
+            {
+                Id = cutRodQuote.Id,
+                Item = "Cut Rod",
+                Quantity = cutRodQuote.Quantity,
+                Attributes = string.Format("Grade: {0}, Diameter: {1}, Length: {2},  Length-: {3}, Length+: {4}", cutRodQuote.GradeDropdown, cutRodQuote.DiameterDropdown, cutRodQuote.Length, cutRodQuote.LengthMinus, cutRodQuote.LengthPlus),
+                pricing = cutRodQuote.Pricing,
+                CutRodQuote = cutRodQuote
+            });
+        // Any additional logic you need after adding a quote
+        foreach (var i in cutRodQuote.Pricing)
+        {
+            if (cutRodQuote.Pricing.Any())
+            {
+                foreach (var s in i.StockUsed)
+                {
+                    if (i.StockUsed.Any())
+                    {
+                        try
+                        {
+                            var sku = s.StockSku.Replace("-", "/");
+                            var item = await _Authentication.GetStandardItemByNo(sku);
+                            if (item.Any())
+                            {
+                                var single = item.FirstOrDefault();
+
+                                var stock = new StockUsedForQuote
+                                    {
+                                        Id = cutRodQuote.Id,
+                                        StockNorthbrook = (int)single.itemAvailInNorthAmerica,
+                                        StockAll = (int)single.InventoryCtrl,
+                                        StockQtyUsed = s.StockQty,
+                                        StockSku = s.StockSku,
+                                        IdealYield= 0
+                                    };
+                                stocksForQuoteCutSand.Add(stock);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+    private async Task ActivateTab(string tabName)
+    {
+        ActiveTab = tabName;
+        PageTab = tabName;
+        if(tabName == "Rod")
+        {
+            if (rodItemAttributes.Count == 0)
+            {
+                rodItemAttributes = await transform.TransformBCItemAttributes("Rod");
+            }
+        }
+        if (tabName == "Cut Rod")
+        {
+            if (rodItemAttributes.Count == 0)
+            {
+                rodItemAttributes = await transform.TransformBCItemAttributes("Rod");
+            }
+        }
+        StateHasChanged();
+    }
+    private async Task DeleteItem(TempItem tempItem)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            // Remove from the temporary display list
+            TempItems.Remove(tempItem);
+            if(tempItem.ItemType == "Sheet")
+            {
+                var itemToRemove = quoteExport.SheetQuote.FirstOrDefault(sq => sq.Id == tempItem.Id);
+                if (itemToRemove != null)
+                {
+                    quoteExport.SheetQuote.Remove(itemToRemove);
+                }
+            }
+            if(tempItem.ItemType == "Rod")
+            {
+                var itemToRemove = quoteExport.RodQuote.FirstOrDefault(sq => sq.Id == tempItem.Id);
+                if (itemToRemove != null)
+                {
+                    quoteExport.RodQuote.Remove(itemToRemove);
+                }
+            }
+            if(tempItem.ItemType == "Cut Rod")
+            {
+                var itemToRemove = quoteExport.CutRodQuote.FirstOrDefault(sq => sq.Id == tempItem.Id);
+                if (itemToRemove != null)
+                {
+                    quoteExport.CutRodQuote.Remove(itemToRemove);
+                }
+            }
+
+        }
+    }
+    private async Task DeleteTubeItem(TempTubeItem TubeTemp)
+    {
+        // Remove from the temporary display list
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            TempTubeItems.Remove(TubeTemp);
+
+            var itemToRemove = quoteExport.TubeQuote.FirstOrDefault(sq => sq.TubeID == TubeTemp.Id);
+            if (itemToRemove != null)
+            {
+                quoteExport.TubeQuote.Remove(itemToRemove);
+            }
+        }
+    }
+    private async Task DeleteWasherItem(WasherTempItem WasherTemp)
+    {
+        // Remove from the temporary display list
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            washerTempItems.Remove(WasherTemp);
+
+            var itemToRemove = quoteExport.WasherQuote.FirstOrDefault(sq => sq.Id == WasherTemp.Id);
+            if (itemToRemove != null)
+            {
+                quoteExport.WasherQuote.Remove(itemToRemove);
+            }
+        }
+    }
+    private async Task DeleteGrindItem(GrindTempItem GrindTemp)
+    {
+        // Remove from the temporary display list
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            grindTempItems.Remove(GrindTemp);
+
+            var itemToRemove = quoteExport.CustomGrindQuote.FirstOrDefault(sq => sq.Id == GrindTemp.Id);
+            if (itemToRemove != null)
+            {
+                quoteExport.CustomGrindQuote.Remove(itemToRemove);
+            }
+        }
+    }
+    private async Task DeleteCutPieceItem(CutPieceSandTempItem CutPieceTempItem)
+    {
+        // Remove from the temporary display list
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            CutPieceTempItems.Remove(CutPieceTempItem);
+
+            var itemToRemove = quoteExport.CutPieceSandQuote.FirstOrDefault(sq => sq.Id == CutPieceTempItem.Id);
+            if (itemToRemove != null)
+            {
+                quoteExport.CutPieceSandQuote.Remove(itemToRemove);
+            }
+        }
+    }
+    private async Task DeleteCutRodItem(CutRodTempItem CutRodTempItem)
+    {
+        // Remove from the temporary display list
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this item?");
+        if (confirmed)
+        {
+            CutRodTempItems.Remove(CutRodTempItem);
+
+            var itemToRemove = quoteExport.CutRodQuote.FirstOrDefault(sq => sq.Id == CutRodTempItem.Id);
+            if (itemToRemove != null)
+            {
+                quoteExport.CutRodQuote.Remove(itemToRemove);
+            }
+        }
+    }
+    private void CutPieceItemDetails(CutPieceSandTempItem CutPieceTempItem)
+    {
+        currentItemForDetails = CutPieceTempItem;
+        isDetailsModalOpen = true;
+    }
+
+
+    private void WasherItemDetails(WasherTempItem WasherTemp)
+    {
+        washerDetails = WasherTemp;
+        isWasherDetailsModalOpen = true;
+    }
+    private void GrindingItemDetails(GrindTempItem GrindingTemp)
+    {
+        grindDetails = GrindingTemp;
+        isGrindingDetailsModalOpen = true;
+    }
+    private void CloseGrindingModal()
+    {
+        isGrindingDetailsModalOpen = false;
+    }
+    private void CloseModal()
+    {
+        isDetailsModalOpen = false;
+    }
+    private void CloseWasherModal()
+    {
+        isWasherDetailsModalOpen = false;
+    }
+    //cut rod details
+    private void CutRodItemDetails(CutRodTempItem CutRodTempItem)
+    {
+        currentRodItemForDetails = CutRodTempItem;
+        isRodDetailsModalOpen = true;
+    }
+    private void CloseRodModal()
+    {
+        isRodDetailsModalOpen = false;
+    }
+    //end cut rod details
+    private async Task NewQuote(bool IsSubmitted)
+    {
+        string message = "Are you sure you want to start a new quote?";
+        if(IsSubmitted)
+        {
+            message = "Your quote has been sent to Business Central. Start a new quote?";
+        }
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", message);
+        if (confirmed)
+        {
+            CustomerNo = "";
+            CustomerName = "";
+            TempItems.Clear();
+            CutPieceTempItems.Clear();
+            quoteExport = new QuoteExport();
+            stocksForQuoteCutSand = new List<StockUsedForQuote>();
+            CutRodTempItems.Clear();            
+            invalidNo = false;
+            submission = new Submission();
+            UploadedFileContent = string.Empty;
+            dropClass = "";
+            fileSizeError = false;
+            fileTypeError = false;
+            selectedFiles = new List<IFileListEntry>();    
+            washerTempItems.Clear();
+            TempTubeItems.Clear();
+            grindTempItems.Clear();
+            await CheckCustomerInformation();
+        }
+    }
+
+    public async Task<bool> ErrorHandling()
+    {
+        var validationMessages = new List<string>();
+
+        bool allListsAreEmpty = !quoteExport.SheetQuote.Any() &&
+                                !quoteExport.RodQuote.Any() &&
+                                !quoteExport.TubeQuote.Any() &&
+                                !quoteExport.CutTubeQuote.Any() &&
+                                !quoteExport.CutRodQuote.Any() &&
+                                !quoteExport.CustomGrindQuote.Any() &&
+                                !quoteExport.CutPieceSandQuote.Any() &&
+                                !quoteExport.WasherQuote.Any();
+
+
+        if (invalidNo)
+        {
+            if(!string.IsNullOrEmpty(CustomerNo))
+            {
+                validationMessages.Add("Customer number is filled in but not valid. Please type it or select it again.");
+            }
+
+        }
+        if (string.IsNullOrEmpty(CustomerNo))
+        {
+            validationMessages.Add("Customer number is required.");
+        }
+        if (string.IsNullOrEmpty(CustomerName))
+        {
+            validationMessages.Add("Customer Name is required.");
+        }
+        // The message should be added if all lists are empty.
+        if (allListsAreEmpty)
+        {
+            validationMessages.Add("At least one quote section must have data.");
+        }
+        // Check if there are any validation messages to display
+        if (validationMessages.Any())
+        {
+            // Construct the alert message
+            string alertMessage = "Please address the following before proceeding:\n" + string.Join("\n", validationMessages);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution and indicate there was an error
+            return true;
+        }
+        // No errors, allow further execution
+        return false;
+    }
+    private async Task ExportAsPDF()
+    {
+        //await JSRuntime.InvokeVoidAsync("exportToPDF", "default-modal", "AtlasFibre-Self-Quote-Export.pdf");
+    }
+    // private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    // {
+    //     var file = e.File;
+    //     if (file != null && Path.GetExtension(file.Name).ToLower() == ".eml")
+    //     {
+    //         using (var reader = new StreamReader(file.OpenReadStream()))
+    //         {
+    //             UploadedFileContent = await reader.ReadToEndAsync();
+    //         }
+    //     }
+    //     else
+    //     {
+    //         // Handle invalid file type
+    //     }
+    // }
+
+    const int MaxFileSizeMB = 5;
+    const int MaxFileSize = MaxFileSizeMB * 1024 * 1024; // 5MB
+    private string dropClass = "";
+    private bool fileSizeError = false;
+    private bool fileTypeError = false;
+    private List<IFileListEntry> selectedFiles = new List<IFileListEntry>();
+    private void HandleDragEnter()
+    {
+        dropClass = "dropzone-drag";
+    }
+
+    private void HandleDragLeave()
+    {
+        dropClass = "";
+    }
+    private async Task HandleFileInputChange(IFileListEntry[] files)
+    {
+        dropClass = "";
+        fileSizeError = false;
+        fileTypeError = false;
+        List<string> acceptedFileTypes = new List<string>() { /* "image/png", "image/jpeg", "image/gif", "eml",  */"message/rfc822" };
+        if (files != null)
+        {
+            foreach (var file in files)
+            {
+                bool error = false;
+                if (file.Size > MaxFileSize)
+                {
+                    error = true;
+                    fileSizeError = true;
+                }
+
+                if (!acceptedFileTypes.Contains(file.Type))
+                {
+                    error = true;
+                    fileTypeError = true;
+                }
+
+                using var stream = new MemoryStream();
+                await file.Data.CopyToAsync(stream);
+                stream.Position = 0;
+                var fileContent = stream.ToArray();
+                AzureStorage storage = new AzureStorage();
+                var result = await storage.UploadEmailToAzure(fileContent);
+                UploadedFileContent = result;//Encoding.UTF8.GetString(fileContent);
+                                             //keep the good files
+                if (!error)
+                {
+                    selectedFiles.Add(file);
+                }
+            }
+        }
+    }
+    private void RemoveFile(IFileListEntry file)
+    {
+        selectedFiles.Remove(file);
+    }
+}

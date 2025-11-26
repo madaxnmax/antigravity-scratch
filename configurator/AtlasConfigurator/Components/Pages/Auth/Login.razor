@@ -1,0 +1,145 @@
+﻿@page "/login"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject IHttpClientFactory HttpClientFactory
+@using System.Text.Json
+@using System.Net.Http.Json
+@using System.Text
+@using System.ComponentModel.DataAnnotations
+@using AtlasConfigurator.Services
+@inject NavigationManager NavigationManager
+@inject WorkOsAuthService AuthService  
+@inject IHttpContextAccessor HttpContextAccessor
+@rendermode InteractiveServer
+
+<section class="grid h-screen place-content-center text-slate-300">
+    <div class="flex flex-col items-center space-y-6 mt-[-10vh]">
+        <h1 class="text-3xl font-bold">Sign in to your account</h1>
+
+        <EditForm Model="@model" OnValidSubmit="HandleFormSubmit">
+            <DataAnnotationsValidator />
+            <div class="space-y-6">
+                @if (!magicLinkSent)
+                {
+                    <div class="flex flex-col items-center">
+                        <input type="email" @bind="model.Email" @bind:event="oninput" placeholder="Email"
+                               class="w-80 appearance-none rounded-sm border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2 px-4
+              focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-orange-500
+              text-gray-900 dark:text-white" />
+                        <ValidationMessage For="@(() => model.Email)" class="mt-2 text-center text-orange-500 italic text-sm" />
+                    </div>
+                    <button type="submit" disabled="@isProcessing" class="w-80 flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800">
+                        @if (isProcessing)
+                        {
+                            <span>Loading...</span>
+                        }
+                        else
+                        {
+                            <span>Send Email Code</span>
+                        }
+                    </button>
+                }
+                else
+                {
+                    <div class="flex flex-col items-center">
+                        <input type="text" @bind="model.Code" @bind:event="oninput" placeholder="Verification Code" class="w-80 appearance-none rounded-sm border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2 px-4
+              focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-orange-500
+              text-gray-900 dark:text-white" />
+                        <ValidationMessage For="@(() => model.Code)" class="mt-2 text-center text-orange-500 italic text-sm" />
+                    </div>
+                    <button type="submit" disabled="@isProcessing" class="w-80 flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800">
+                        Verify Code
+                    </button>
+                }
+            </div>
+        </EditForm>
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger text-red-500" role="alert">
+                @errorMessage
+            </div>
+        }
+    </div>
+</section>
+
+
+
+
+
+@code {
+    private FormModel model = new FormModel();
+    private bool isProcessing = false;
+    private string errorMessage = "";
+    private bool magicLinkSent = false;
+
+    private async Task HandleFormSubmit()
+    {
+        isProcessing = true;
+        errorMessage = "";
+
+        if (!magicLinkSent)
+        {
+            try
+            {
+                // Assuming AuthService.SendMagicLink method exists and sends the magic link email
+                var sentEmail = await AuthService.SendMagicLink(model.Email);
+                if (sentEmail)
+                {
+                    magicLinkSent = true; // Show code entry form on success
+                    errorMessage = ""; // Clear previous errors, if any
+                }
+                else
+                {
+                    errorMessage = "Failed to send email. Please contact customer service.";
+                    isProcessing = false;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "Failed to send link. Please try again.";
+            }
+        }
+        else
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+
+            var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
+            var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
+            try
+            {
+                string codeWithoutSpacesAndTrimmed = model.Code.Trim().Replace(" ", "");
+                string emailWithoutSpacesAndTrimmed = model.Email.Trim().Replace(" ", "");
+
+
+
+                // Handle the code verification here
+                // Assuming AuthService.VerifyCode method exists
+                var user = await AuthService.AuthenticateWithMagicAuth(codeWithoutSpacesAndTrimmed, emailWithoutSpacesAndTrimmed, ipAddress, userAgent);
+                if (user != null)
+                {
+                    NavigationManager.NavigateTo("/", true);
+                }
+                else
+                {
+                    errorMessage = "Unable to authenticate. Please contact customer service.";
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "Failed to verify code. Please try again.";
+            }
+        }
+
+        isProcessing = false;
+    }
+
+    public class FormModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "A valid email is required")]
+        public string Email { get; set; }
+
+        public string Code { get; set; }
+    }
+}

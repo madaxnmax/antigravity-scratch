@@ -1,0 +1,667 @@
+﻿@using AtlasConfigurator.Helpers.CustomGrind
+@using AtlasConfigurator.Helpers.Rods
+@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.CutRod
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Services
+@using AtlasConfigurator.Workers
+@using System.Globalization
+@using AtlasConfigurator.Workers.CutRod
+@using static AtlasConfigurator.Helpers.CustomGrind.CustomGrindHelper
+@inject BCItemTransformation transform
+@inject IMaterialService MaterialService
+@inject IJSRuntime JSRuntime
+@inject Pricing pricing
+@inject AtlasConfigurator.Workers.CutRod.Optimizations optimizations
+@inject Costing costing
+@inject Authentication _Authentication
+@inject CustomGrindHelper _helper
+
+@if (!DataLoading)
+{
+    <div class="w-1/2 pl-2">
+        <div class="mb-4 border p-2 dark:border-gray-700">
+            <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+                <div>OVERRIDE</div>
+                <div>
+                    <button onclick="@ResetOptions" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+                </div>
+            </div>
+            <input class="my-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Input SKU:">
+            <div class="mb-2 flex gap-4">
+                <div class="flex items-center">
+                    <input type="checkbox" id="customerMaterial" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" checked="@CustomerMaterialOnly" @onchange="HandleCustomerMaterialCheckboxChange">
+                    <label for="customerMaterial" class="ml-1 text-xs dark:text-white">Customer Material</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="customMaterial" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" checked="@CustomMaterialOnly" @onchange="HandleCustomMaterialCheckboxChange">
+                    <label for="customMaterial" class="ml-1 text-xs dark:text-white">Custom Material</label>
+                </div>
+            </div>
+            @if (CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                <div class="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div>
+                        <label for="customGrade" class="mb-1 block text-xs dark:text-white">Grade</label>
+                        <input id="customGrade" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="grindQuotes.GradeDropdown">
+                    </div>
+                    <div>
+                        <label for="customColor" class="mb-1 block text-xs dark:text-white">Color</label>
+                        <input id="customColor" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="grindQuotes.Color">
+                    </div>
+                    <div>
+                        <label for="customDiameter" class="mb-1 block text-xs dark:text-white">Custom Diameter</label>
+                        <input id="customDiameter" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="grindQuotes.DiameterDropdown">
+                    </div>
+                    <div>
+                        <label for="customRodLength" class="mb-1 block text-xs dark:text-white">Custom Rod Full Length (Default 48)</label>
+                        <input id="customRodLength" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="CustomFullRodLength">
+                    </div>
+                    @if (CustomMaterialOnly)
+                    {
+                        <div>
+                            <label for="custPrice" class="mb-1 block text-xs dark:text-white">Price Per FT</label>
+                            <input id="custPrice" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" @bind="CustomerPrice">
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="mb-2 grid grid-cols-3 gap-2">
+                    <!-- Grade Dropdown -->
+                    <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    value="@selectedGrade" @onchange="HandleGradeChange">
+                        <option value="">Grade</option>
+                        @foreach (var grade in grades)
+                        {
+                            <option value="@grade">@grade</option>
+                        }
+                    </select>
+                    <!-- Diameter Dropdown -->
+                    <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    value="@selectedDiameter" @onchange="HandleDiameterChange">
+                        <option value="0.000">Diameter</option>
+                        @if (diameters != null)
+                        {
+                            @foreach (var diameter in diameters)
+                            {
+                                <option value="@diameter">@diameter</option>
+                            }
+                        }
+                    </select>
+                    <!-- Color Dropdown -->
+                    <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    value="@selectedColor" @onchange="HandleColorChange">
+                        <option value="">Select Color</option>
+                        @foreach (var color in colors)
+                        {
+                            <option value="@color">@color</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="mb-2 grid grid-cols-3 gap-2">
+                <div>
+                    <label for="length" class="mb-1 block text-xs dark:text-white">Length</label>
+                    <input id="length" type="number" min="0" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" onblur="@HandleLegnthChange" @bind="grindQuotes.Length">
+                </div>
+                <div>
+                    <label for="lengthPlus" class="mb-1 block text-xs dark:text-white">Length (+)</label>
+                    <input id="lengthPlus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength;" @bind="grindQuotes.LengthPlus">
+                </div>
+                <div>
+                    <label for="lengthMinus" class="mb-1 block text-xs dark:text-white">Length (-)</label>
+                    <input id="lengthMinus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength;" @bind="grindQuotes.LengthMinus">
+                </div>
+                <div>
+                    <label for="groundDiameter" class="mb-1 block text-xs dark:text-white">Ground Diameter</label>
+                    <input id="groundDiameter" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength;" @bind="grindQuotes.GroundDiameter">
+                </div>
+                <div>
+                    <label for="groundDiameterPlus" class="mb-1 block text-xs dark:text-white">Ground Diameter (+)</label>
+                    <input id="groundDiameterPlus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength;" @bind="grindQuotes.GroundDiameterPlus">
+                </div>
+                <div>
+                    <label for="groundDiameterMinus" class="mb-1 block text-xs dark:text-white">Ground Diameter (-)</label>
+                    <input id="groundDiameterMinus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" style="color: @toleranceColorLength;" @bind="grindQuotes.GroundDiameterMinus">
+                </div>
+            </div>
+            <!-- Assuming you're using this input for something, bind it if needed -->
+            <input class="my-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Quantity:" @bind="grindQuotes.Quantity">
+            <!-- UOM Dropdown -->
+
+            <select class="border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            @onchange="HandleUOMChange">
+                <option value="" selected="@string.IsNullOrEmpty(selectedUom)">Select UOM</option>
+                <option value="FT" selected="@("FT" == selectedUom)">FT</option>
+                <option value="EA" selected="@("EA" == selectedUom)">EA</option>
+            </select>
+
+
+            <textarea class="my-2 w-full border p-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Extra Comments:" @bind="grindQuotes.Comments"></textarea>
+            @if (isLoading)
+            {
+                <button disabled class="flex w-full items-center justify-center bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                    <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                        <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                    </svg>
+                    Loading...
+                </button>
+            }
+            else
+            {
+                <button @onclick="AddToQuote" class="w-full bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                    Add to Quote
+                </button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="max-w-1050 min-w-970 container mx-auto p-4 dark:bg-gray-700">
+        <div aria-label="Loading..." role="status" class="flex items-center space-x-2">
+            <svg class="h-20 w-20 animate-spin stroke-gray-500" viewBox="0 0 256 256">
+                <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+            </svg>
+            <span class="text-4xl font-medium text-gray-500">Loading...</span>
+        </div>
+    </div>
+}
+
+@code {
+    public CustomGrindQuote grindQuotes = new CustomGrindQuote();
+    [Parameter]
+    public List<ItemAttributes> rodItemAttributes { get; set; } = new List<ItemAttributes>();
+    [Parameter]
+    public string Customer { get; set; }
+    [Parameter]
+    public EventCallback<CustomGrindQuote> CustomGrindOnAdd { get; set; }
+
+    string GradeDropdown { get; set; }
+    string DiameterDropdown { get; set; }
+    private bool isLoading = false;
+    private bool DataLoading = false;
+
+    private bool CustomerMaterialOnly = false;
+    private bool CustomMaterialOnly = false;
+
+
+    private List<string> grades = new List<string>();
+    private string selectedGrade = "";
+    private List<string> diameters = new List<string>();
+    private string selectedDiameter = "";
+    public List<QuantityPricing> quantityPricing = new List<QuantityPricing>();
+    string toleranceColorLength = "";
+    private decimal KerfData = 0.2M;
+    private List<string> colors = new List<string>();
+    private string selectedColor = "";
+    private string UOM = "";
+    private decimal CustomFullRodLength = 48.00M;
+    public decimal CustomerPrice = 0.00M;
+    private decimal FullRodLength = 48.0M;
+    private string selectedUom = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        isLoading = true; // Data is loaded
+        DataLoading = true;
+        if (rodItemAttributes.Count <= 0)
+        {
+            rodItemAttributes = await transform.TransformBCItemAttributes("Rod");
+        }
+        grades = rodItemAttributes
+            .Where(attr => attr.NEMAGrade != null && !string.IsNullOrEmpty(attr.LengthIn))
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        grindQuotes.LengthPlus = 0.06M;
+        grindQuotes.LengthMinus = 0.06M;
+        isLoading = false; // Data is loaded
+        DataLoading = false;
+        StateHasChanged();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+        }
+    }
+
+
+    private async Task HandleGradeChange(ChangeEventArgs e)
+    {
+        selectedGrade = e.Value.ToString();
+        grindQuotes.GradeDropdown = selectedGrade;
+
+        var adjustedGrade = selectedGrade.Replace(" (Rolled)", "").Trim();
+        selectedDiameter = null;
+        selectedColor = null;
+        colors = new List<string>();
+        diameters = new List<string>();
+
+        diameters = rodItemAttributes
+           .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses != null)
+           .Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+           .Select(attr => attr.Thicknesses)
+           .Distinct()
+           .OrderBy(thickness => decimal.Parse(thickness, CultureInfo.InvariantCulture))
+           .ToList();
+
+        grindQuotes.Rolled = selectedGrade.Contains("(Rolled)") ? true : false;
+
+    }
+    private async Task HandleDiameterChange(ChangeEventArgs e)
+    {
+
+        selectedDiameter = e.Value?.ToString();
+        KerfData = await MaterialService.GetMaterialKerfByGradeThickness(grindQuotes.GradeDropdown, Convert.ToDecimal(selectedDiameter));
+        grindQuotes.Kerf = KerfData;
+        grindQuotes.DiameterDropdown = Convert.ToDecimal(selectedDiameter);
+
+        colors = rodItemAttributes
+    .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedDiameter)
+    .Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+    .Select(attr => attr.Color)
+    .Distinct()
+    .ToList();
+    }
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+
+        selectedColor = e.Value?.ToString();
+        grindQuotes.Color = selectedColor;
+    }
+    private async Task HandleUOMChange(ChangeEventArgs e)
+    {
+        selectedUom = e.Value?.ToString();
+
+        UOM = e.Value?.ToString();
+        UOM = selectedUom;
+        grindQuotes.UOM = UOM;
+    }
+    private void HandleCustomerMaterialCheckboxChange(ChangeEventArgs e)
+    {
+
+        CustomerMaterialOnly = (bool)e.Value;
+        if (CustomerMaterialOnly == true)
+        {
+            grindQuotes.CustomerMaterialOnly = true;
+
+        }
+        else
+        {
+            grindQuotes.CustomerMaterialOnly = false;
+
+        }
+
+
+    }
+    private void HandleCustomMaterialCheckboxChange(ChangeEventArgs e)
+    {
+
+        CustomMaterialOnly = (bool)e.Value;
+        if (CustomMaterialOnly == true)
+        {
+            grindQuotes.CustomMaterialOnly = true;
+        }
+        else
+        {
+            grindQuotes.CustomMaterialOnly = false;
+        }
+
+    }
+    public async Task<bool> ErrorHandling()
+    {
+        var validationMessages = new List<string>();
+
+        if (string.IsNullOrEmpty(selectedGrade))
+        {
+            validationMessages.Add("- Grade");
+        }
+        if (string.IsNullOrEmpty(selectedDiameter))
+        {
+            validationMessages.Add("- Diameter");
+        }
+        if (string.IsNullOrEmpty(Customer))
+        {
+            validationMessages.Add("- Customer");
+        }
+        if (grindQuotes.Length < 0.10M || grindQuotes.Length > FullRodLength)
+        {
+            validationMessages.Add("- Length must be > 0.10 and <  " + FullRodLength);
+        }
+        if (string.IsNullOrEmpty(grindQuotes.Quantity))
+        {
+            validationMessages.Add("- Quantity");
+        }
+        else
+        {
+            var quantities = grindQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var q in quantities)
+            {
+                if (!int.TryParse(q, out int qty))
+                {
+                    validationMessages.Add($"- Quantity '{q}' must be a number");
+                    break;
+                }
+                if (int.TryParse(q, out int qtyAmt))
+                {
+                    if (qtyAmt > 1000)
+                    {
+                        validationMessages.Add($"- Quantity '{q}' must be 1000 or less");
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        // Check if there are any missing fields
+        if (validationMessages.Any())
+        {
+            // Construct the alert message
+            string alertMessage = "Please complete the following fields before proceeding:\n" + string.Join("\n", validationMessages);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution
+            return true;
+        }
+        return false;
+    }
+
+    private void ResetOptions()
+    {
+        selectedGrade = "";
+        selectedDiameter = "";
+        diameters = new List<string>();
+        grades = new List<string>();
+        grindQuotes = new CustomGrindQuote();
+        grades = rodItemAttributes
+            .Where(attr => attr.NEMAGrade != null && !string.IsNullOrEmpty(attr.LengthIn))
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        grindQuotes.LengthPlus = 0.06M;
+        grindQuotes.LengthMinus = 0.06M;
+        colors = new List<string>();
+        selectedColor = "";
+        UOM = string.Empty;
+        isLoading = false;
+        CustomerMaterialOnly = false;
+        CustomMaterialOnly = false;
+        CustomFullRodLength = 48.00M;
+        CustomerPrice = 0.00M;
+        FullRodLength = 48.00M;
+        selectedUom = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task HandleOverrideChange(FocusEventArgs e)
+    {
+        var sku = grindQuotes.OverrideSku;
+        var result = rodItemAttributes.Where(x => x.ItemNumber == sku).ToList();
+        if (result.Count > 0)
+        {
+            selectedGrade = result.Select(x => x.NEMAGrade).FirstOrDefault();
+            selectedDiameter = result.Select(x => x.Thicknesses).FirstOrDefault().ToString();
+            selectedColor = result.Select(x => x.Color).FirstOrDefault();
+
+            diameters.Clear();
+            diameters = result.Select(x => x.Thicknesses).ToList(); //await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+
+            grindQuotes.GradeDropdown = selectedGrade;
+            grindQuotes.DiameterDropdown = decimal.Parse(selectedDiameter, CultureInfo.InvariantCulture);
+            grindQuotes.Color = selectedColor;
+
+        }
+    }
+    private async Task HandleLegnthChange(FocusEventArgs e)
+    {
+
+
+    }
+
+    private async Task AddToQuote()
+    {
+        isLoading = true;
+
+        try
+        {
+            if(CustomerMaterialOnly || CustomMaterialOnly)
+            {
+                selectedGrade = grindQuotes.GradeDropdown;
+                selectedDiameter = grindQuotes.DiameterDropdown.ToString();
+                grindQuotes.CustomRodFullLength = FullRodLength;
+                if(CustomFullRodLength > 0)
+                {
+                    FullRodLength = CustomFullRodLength;
+                    grindQuotes.CustomRodFullLength = FullRodLength;
+                }
+            }
+            var errors = await ErrorHandling();
+            if (errors)
+            {
+                isLoading = false;
+                return;
+            }
+            var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+
+            grindQuotes.Customer = Customer;
+            var adjustedGrade = selectedGrade.Replace(" (Rolled)", "").Trim();
+
+            // Add your logic here to populate sheetQuote as needed
+            grindQuotes.GradeDropdown = adjustedGrade;
+            grindQuotes.DiameterDropdown = decimal.Parse(selectedDiameter, CultureInfo.InvariantCulture);
+            if (grindQuotes.DiameterDropdown == null)
+            {
+                grindQuotes.DiameterDropdown = int.Parse(selectedDiameter, CultureInfo.InvariantCulture);
+            }
+
+            //begin
+            try
+            {
+                decimal lengthValue = (grindQuotes.Length - grindQuotes.LengthMinus) + 0.010M;
+                List<ItemAttributes> stocks = new List<ItemAttributes>();
+                ItemAttributes selectedItem = null;
+
+                if (CustomerMaterialOnly || CustomMaterialOnly)
+                {
+                    if(CustomerMaterialOnly)
+                    {
+                        grindQuotes.ItemNo = "Customer Material";
+                    }
+                    if (CustomMaterialOnly)
+                    {
+                        grindQuotes.ItemNo = "Custom Material";
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(grindQuotes.OverrideSku))
+                    {
+                        selectedItem = rodItemAttributes.Where(x => x.ItemNumber == grindQuotes.OverrideSku).FirstOrDefault();
+                    }
+
+                    if (selectedItem == null)
+                    {
+
+                        selectedItem = rodItemAttributes
+                                            .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedDiameter && attr.Color == selectedColor)
+                                            .Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+                                            .FirstOrDefault();
+                    }
+                    stocks.Add(selectedItem);
+                    grindQuotes.ItemNo = selectedItem.ItemNumber;
+                }
+
+                var quantities = grindQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var q in quantities)
+                {
+                    if (int.TryParse(q, out int qty))
+                    {
+                        var cutPiece = new CutPiece
+                            {
+                                Length = lengthValue,
+                                Quantity = qty,
+                                Diameter = Convert.ToDecimal(grindQuotes.DiameterDropdown),
+                                ToleranceMinusLength = grindQuotes.LengthMinus,
+                                TolerancePlusLength = grindQuotes.LengthPlus,
+                                Grade = grindQuotes.GradeDropdown,
+                                DiameterMinus = grindQuotes.GroundDiameterMinus,
+                                DiameterPlus = grindQuotes.GroundDiameterPlus
+                            };
+
+                        //labor cost
+                        var grinding = new GrindingCalculation(startingDiameter: grindQuotes.DiameterDropdown, finishDiameter: grindQuotes.GroundDiameter, lengthInches: grindQuotes.Length, rodQuantity: Convert.ToInt32(q), grindQuotes.GroundDiameterPlus);
+                        decimal totalLabor = grinding.CalculateTotalLabor();
+                        //stock cost
+                        QuantityPricing stockpricing;
+                        if (CustomerMaterialOnly || CustomMaterialOnly)
+                        {
+                            stockpricing = new QuantityPricing(Convert.ToInt32(grindQuotes.Quantity), CustomerPrice);
+                        }
+                        else
+                        {
+                            stockpricing = await transform.CalculatePricingForQuantitySimple(Convert.ToInt32(q), grindQuotes.ItemNo, Customer);
+                        }
+
+
+                        decimal totalStockPrice = 0.00M;
+                        //rolled is priced as EA in BC
+                        if (grindQuotes.ItemNo.StartsWith("RL") || grindQuotes.ItemNo.StartsWith("RG"))
+                        {
+                            if (grindQuotes.UOM == "FT")
+                            {
+                                var rodLengthInFeet = grindQuotes.CustomRodFullLength / (decimal)12.0;
+                                var priceperfoot = stockpricing.PricePerItem / rodLengthInFeet;
+
+                                totalStockPrice = priceperfoot * stockpricing.Quantity;
+                            }
+                            else
+                            {
+                                totalStockPrice = stockpricing.PricePerItem * stockpricing.Quantity;
+                            }
+                        }
+                        //All others are priced as FT in BC
+                        else
+                        {
+                            if (grindQuotes.UOM == "FT")
+                            {
+                                totalStockPrice = stockpricing.PricePerItem * stockpricing.Quantity;
+                            }
+                            else
+                            {
+                                var totalFt = grindQuotes.Length / 12.0m; // Convert length to feet
+                                totalStockPrice = stockpricing.PricePerItem * totalFt * stockpricing.Quantity;
+                            }
+                        }
+
+                        var totalprice = totalStockPrice + totalLabor;
+
+                        // 1) Adjusted piece length (with tolerance and kerf)
+                        decimal adjustedPieceLength = grindQuotes.Length
+                                                      + grindQuotes.LengthPlus
+                                                      + grindQuotes.Kerf;
+
+
+
+                        // 2) Calculate the exact (decimal) pieces per 48" rod
+                        decimal exactPiecesPerRod;
+                        if (adjustedPieceLength > FullRodLength)
+                        {
+                            exactPiecesPerRod = FullRodLength + grindQuotes.LengthPlus + grindQuotes.Kerf;
+                            exactPiecesPerRod = exactPiecesPerRod / adjustedPieceLength;
+                        }
+                        else
+                        {
+                            exactPiecesPerRod = FullRodLength / adjustedPieceLength;
+                        }
+                
+
+                        // 3) Floor that value to get how many *whole* pieces you can actually cut from a rod
+                        int integralPiecesPerRod = (int)Math.Floor(exactPiecesPerRod);
+
+                        // 4) The Ideal Yield is how many full pieces can fit per rod in practice
+                        decimal idealYield = integralPiecesPerRod;
+
+                        // 5) Calculate total rods required based on the UOM
+                        int totalQuantityRequested = Convert.ToInt32(q); // e.g., the "qty" from the loop
+                        decimal totalRodsRequired;
+
+                        if (grindQuotes.UOM == "EA")
+                        {
+                            // If UOM is "EA", divide requested quantity by the integer yield
+                            // and ceiling to ensure any leftover pieces require an extra rod.
+                            totalRodsRequired = Math.Ceiling(totalQuantityRequested / (decimal)integralPiecesPerRod);
+                        }
+                        else // UOM == "FT"
+                        {
+                            // If UOM is "FT", we consider the total length in feet requested
+                            // vs. the adjusted piece length in feet (which includes tolerance & kerf).
+                            decimal totalLengthFt = grindQuotes.Length / 12M;
+                            decimal adjustedLengthFt = adjustedPieceLength / 12M;
+                            totalRodsRequired = Math.Ceiling(totalLengthFt / adjustedLengthFt);
+                        }
+
+                        // Finally, fill out the GrindPricing object
+                        var pricing = new GrindPricing
+                            {
+                                LaborCost = totalLabor,
+                                StockPrice = stockpricing.PricePerItem,
+                                Quantity = stockpricing.Quantity,
+                                TotalPrice = totalprice,
+                                PricePerItem = totalprice / Convert.ToInt32(q),
+                                TotalStockPrice = totalStockPrice,
+                                TotalRodsRequired = (int)totalRodsRequired,
+                                IdealYield = (int)idealYield
+                            };
+
+
+ 
+
+                        grindQuotes.Pricing.Add(pricing);
+
+                    } //end quantity if statement
+                } //end foreach
+                  //finish
+                var result = grindQuotes;
+                ResetOptions();
+                isLoading = false;
+                await CustomGrindOnAdd.InvokeAsync(result);
+            }
+            catch (Exception ex)
+            {
+                isLoading = false;
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+        }
+    }
+
+}

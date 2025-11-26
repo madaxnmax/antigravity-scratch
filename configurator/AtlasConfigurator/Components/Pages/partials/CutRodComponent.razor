@@ -1,0 +1,439 @@
+﻿@using AtlasConfigurator.Helpers.Rods
+@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.CutRod
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Services
+@using AtlasConfigurator.Workers
+@using System.Globalization
+@using AtlasConfigurator.Workers.CutRod
+@inject BCItemTransformation transform
+@inject IMaterialService MaterialService
+@inject IJSRuntime JSRuntime
+@inject Pricing pricing
+@inject AtlasConfigurator.Workers.CutRod.Optimizations optimizations
+@inject Costing costing
+@inject Authentication _Authentication
+@inject CutRodHelper _helper
+@if (!DataLoading)
+{
+    <div class="w-1/2 pl-2">
+        <div class="mb-4 border p-2 dark:border-gray-700">
+            <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+                <div>OVERRIDE</div>
+                <div>
+                    <button onclick="@ResetOptions" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+                </div>
+            </div>
+            <input class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Input SKU:">
+            <div class="mb-2 grid grid-cols-3 gap-2">
+                <!-- Grade Dropdown -->
+                <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedGrade" @onchange="HandleGradeChange">
+                    <option value="">Grade</option>
+                    @foreach (var grade in grades)
+                    {
+                        <option value="@grade">@grade</option>
+                    }
+                </select>
+                <!-- Diameter Dropdown -->
+                <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedThickness" @onchange="HandleThicknessChange">
+                    <option value="0.000">Diameter</option>
+                    @if (thicknesses != null)
+                    {
+                        @foreach (var thickness in thicknesses)
+                        {
+                            <option value="@thickness">@thickness</option>
+                        }
+                    }
+                </select>
+                <!-- Color Dropdown -->
+                <select class="border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                value="@selectedColor" @onchange="HandleColorChange">
+                    <option value="">Select Color</option>
+                    @foreach (var color in colors)
+                    {
+                        <option value="@color">@color</option>
+                    }
+                </select>
+            </div>
+            <div class="mb-2 grid grid-cols-3 gap-2">
+                <div>
+                    <label for="length" class="mb-1 block text-xs dark:text-white">Length</label>
+                    <input id="length" type="number" min="0" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" onblur="@HandleLegnthChange" @bind="cutRodQuotes.Length">
+                </div>
+                <div>
+                    <label for="lengthPlus" class="mb-1 block text-xs dark:text-white">Length (+)</label>
+                    <input id="lengthPlus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" style="color: @toleranceColorLength;" @bind="cutRodQuotes.LengthPlus">
+                </div>
+                <div>
+                    <label for="lengthMinus" class="mb-1 block text-xs dark:text-white">Length (-)</label>
+                    <input id="lengthMinus" min="0.000" type="number" step="0.001" class="w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" style="color: @toleranceColorLength;" @bind="cutRodQuotes.LengthMinus">
+                </div>
+            </div>
+            <!-- Assuming you're using this input for something, bind it if needed -->
+            <input class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Quantity:" @bind="cutRodQuotes.Quantity">
+
+            <textarea class="my-2 w-full border p-2 dark:bg-gray-700 dark:text-white dark:border-gray-600" placeholder="Extra Comments:" @bind="cutRodQuotes.Comments"></textarea>
+            @if (isLoading)
+            {
+                <button disabled class="flex w-full items-center justify-center bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                    <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                        <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                    </svg>
+                    Loading...
+                </button>
+            }
+            else
+            {
+                <button @onclick="AddToQuote" class="w-full bg-blue-600 px-4 py-2 text-white dark:bg-blue-800">
+                    Add to Quote
+                </button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="max-w-1050 min-w-970 container mx-auto p-4 dark:bg-gray-700">
+        <div aria-label="Loading..." role="status" class="flex items-center space-x-2">
+            <svg class="h-20 w-20 animate-spin stroke-gray-500" viewBox="0 0 256 256">
+                <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+                <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="24"></line>
+                <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+                <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+                </line>
+            </svg>
+            <span class="text-4xl font-medium text-gray-500">Loading...</span>
+        </div>
+    </div>
+}
+@code {
+    public CutRodQuote cutRodQuotes = new CutRodQuote();
+    [Parameter]
+    public List<ItemAttributes> rodItemAttributes { get; set; }
+    [Parameter]
+    public string Customer { get; set; }
+    [Parameter]
+    public EventCallback<CutRodQuote> CutRodOnAdd { get; set; }
+
+    string GradeDropdown { get; set; }
+    string DiameterDropdown { get; set; }
+    private bool isLoading = false;
+    private bool DataLoading = false;
+
+    private List<string> grades = new List<string>();
+    private string selectedGrade = "";
+    private List<string> thicknesses = new List<string>();
+    private string selectedThickness = "";
+    public List<QuantityPricing> quantityPricing = new List<QuantityPricing>();
+    string toleranceColorLength = "";
+    private decimal KerfData = 0.2M;
+    private List<string> colors = new List<string>();
+    private string selectedColor = "";
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        isLoading = true; // Data is loaded
+        DataLoading = true;
+        if (rodItemAttributes.Count <= 0)
+        {
+            rodItemAttributes = await transform.TransformBCItemAttributes("Rod");
+        }
+        grades = rodItemAttributes
+            .Where(attr => attr.NEMAGrade != null && !string.IsNullOrEmpty(attr.LengthIn))
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        cutRodQuotes.LengthPlus = 0.06M;
+        cutRodQuotes.LengthMinus = 0.06M;
+        isLoading = false; // Data is loaded
+        DataLoading = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+        }
+    }
+    private async Task HandleGradeChange(ChangeEventArgs e)
+    {
+        selectedGrade = e.Value.ToString();
+        cutRodQuotes.GradeDropdown = selectedGrade;
+
+        var adjustedGrade = selectedGrade.Replace(" (Rolled)", "").Trim();
+        selectedThickness = null;
+        selectedColor = null;
+        colors = new List<string>();
+        thicknesses = new List<string>();
+
+        thicknesses = rodItemAttributes
+           .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses != null)
+           .Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+           .Select(attr => attr.Thicknesses)
+           .Distinct()
+           .OrderBy(thickness => decimal.Parse(thickness, CultureInfo.InvariantCulture))
+           .ToList();
+
+        cutRodQuotes.Rolled = selectedGrade.Contains("(Rolled)") ? true : false;
+
+    }
+    private async Task HandleThicknessChange(ChangeEventArgs e)
+    {
+
+        selectedThickness = e.Value?.ToString();
+        KerfData = await MaterialService.GetMaterialKerfByGradeThickness(cutRodQuotes.GradeDropdown, Convert.ToDecimal(selectedThickness));
+        cutRodQuotes.Kerf = KerfData;
+        cutRodQuotes.DiameterDropdown = Convert.ToDecimal(selectedThickness);
+        // colors = rodItemAttributes
+        //     .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness)
+        //     .Select(attr => attr.Color)
+        //     .Distinct()
+        //     .ToList();
+
+        colors = rodItemAttributes
+.Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness)
+.Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+.Select(attr => attr.Color)
+.Distinct()
+.ToList();
+    }
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+
+        selectedColor = e.Value?.ToString();
+        cutRodQuotes.Color = selectedColor;
+    }
+
+    public async Task<bool> ErrorHandling()
+    {
+        var validationMessages = new List<string>();
+
+        if (string.IsNullOrEmpty(selectedGrade))
+        {
+            validationMessages.Add("- Grade");
+        }
+        if (string.IsNullOrEmpty(selectedThickness))
+        {
+            validationMessages.Add("- Thickness");
+        }
+        if (string.IsNullOrEmpty(Customer))
+        {
+            validationMessages.Add("- Customer");
+        }
+        if (cutRodQuotes.Length < 0.10M || cutRodQuotes.Length > 48)
+        {
+            validationMessages.Add("- Length must be > 0.10 and < 48");
+        }
+        if (string.IsNullOrEmpty(cutRodQuotes.Quantity))
+        {
+            validationMessages.Add("- Quantity");
+        }
+        else
+        {
+            var quantities = cutRodQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var q in quantities)
+            {
+                if (!int.TryParse(q, out int qty))
+                {
+                    validationMessages.Add($"- Quantity '{q}' must be a number");
+                    break;
+                }
+                if (int.TryParse(q, out int qtyAmt))
+                {
+                    if (qtyAmt > 1000)
+                    {
+                        validationMessages.Add($"- Quantity '{q}' must be 1000 or less");
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        // Check if there are any missing fields
+        if (validationMessages.Any())
+        {
+            // Construct the alert message
+            string alertMessage = "Please complete the following fields before proceeding:\n" + string.Join("\n", validationMessages);
+            // Display the alert to the user
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+            // Exit the method to prevent further execution
+            return true;
+        }
+        return false;
+    }
+
+    private void ResetOptions()
+    {
+        selectedGrade = "";
+        selectedThickness = "";
+        thicknesses = new List<string>();
+        grades = new List<string>();
+        cutRodQuotes = new CutRodQuote();
+        grades = rodItemAttributes
+            .Where(attr => attr.NEMAGrade != null && !string.IsNullOrEmpty(attr.LengthIn))
+            .Select(attr => attr.NEMAGrade)
+            .Distinct()
+            .ToList();
+        cutRodQuotes.LengthPlus = 0.06M;
+        cutRodQuotes.LengthMinus = 0.06M;
+        colors = new List<string>();
+        selectedColor = "";
+        isLoading = false;
+    }
+
+    private async Task HandleOverrideChange(FocusEventArgs e)
+    {
+        var sku = cutRodQuotes.OverrideSku;
+        var result = rodItemAttributes.Where(x => x.ItemNumber == sku).ToList();
+        if (result.Count > 0)
+        {
+            selectedGrade = result.Select(x => x.NEMAGrade).FirstOrDefault();
+            selectedThickness = result.Select(x => x.Thicknesses).FirstOrDefault().ToString();
+            selectedColor = result.Select(x=>x.Color).FirstOrDefault();
+
+            thicknesses.Clear();
+            thicknesses = result.Select(x => x.Thicknesses).ToList(); //await MaterialService.GetThicknessesByGradeAsync(selectedGrade);
+
+            cutRodQuotes.GradeDropdown = selectedGrade;
+            cutRodQuotes.DiameterDropdown = decimal.Parse(selectedThickness, CultureInfo.InvariantCulture);
+            cutRodQuotes.Color = selectedColor;
+
+        }
+    }
+
+    private async Task AddToQuote()
+    {
+        isLoading = true;
+
+        try
+        {
+            var errors = await ErrorHandling();
+            if (errors)
+            {
+                isLoading = false;
+                return;
+            }
+            var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+
+            cutRodQuotes.Customer = Customer;
+            var adjustedGrade = selectedGrade.Replace(" (Rolled)", "").Trim();
+
+            // Add your logic here to populate sheetQuote as needed
+            cutRodQuotes.GradeDropdown = adjustedGrade;
+            cutRodQuotes.DiameterDropdown = decimal.Parse(selectedThickness, CultureInfo.InvariantCulture);
+            if (cutRodQuotes.DiameterDropdown == null)
+            {
+                cutRodQuotes.DiameterDropdown = int.Parse(selectedThickness, CultureInfo.InvariantCulture);
+            }
+
+            //begin
+            try
+            {
+                decimal lengthValue = (cutRodQuotes.Length - cutRodQuotes.LengthMinus) + 0.010M;
+                List<ItemAttributes> stocks = new List<ItemAttributes>();
+                ItemAttributes selectedItem = null;
+                if (!string.IsNullOrEmpty(cutRodQuotes.OverrideSku))
+                {
+                    selectedItem = rodItemAttributes.Where(x => x.ItemNumber == cutRodQuotes.OverrideSku).FirstOrDefault();
+                }
+
+                if (selectedItem == null)
+                {
+
+                    selectedItem = rodItemAttributes
+                                        .Where(attr => attr.NEMAGrade == selectedGrade && attr.Thicknesses == selectedThickness && attr.Color == selectedColor)
+                                        .Where(attr => selectedGrade.Contains("(Rolled)") ? attr.Rolled == true : (attr.Rolled == false || attr.Rolled == null))
+                                        .FirstOrDefault();
+                }
+
+                stocks.Add(selectedItem);
+                cutRodQuotes.ItemNo = selectedItem.ItemNumber;
+                var quantities = cutRodQuotes.Quantity.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var q in quantities)
+                {
+                    if (int.TryParse(q, out int qty))
+                    {
+                        var cutPiece = new CutPiece
+                            {
+                                Length = lengthValue,
+                                Quantity = qty,
+                                Diameter = Convert.ToDecimal(cutRodQuotes.DiameterDropdown),
+                                ToleranceMinusLength = cutRodQuotes.LengthMinus,
+                                TolerancePlusLength = cutRodQuotes.LengthPlus,
+                                Grade = cutRodQuotes.GradeDropdown
+                            };
+                        cutRodQuotes.Quantity = qty.ToString();
+                        var returnData = await _helper.SetupCutRodPricing(cutPiece, Customer, cutRodQuotes, stocks, connectionId);
+
+
+                        cutRodQuotes.Pricing.Add(returnData);
+
+                    } //end quantity if statement
+                } //end foreach
+                  //finish
+                var result = cutRodQuotes;
+                ResetOptions();
+                isLoading = false;
+                await CutRodOnAdd.InvokeAsync(result);
+            }
+            catch (Exception ex)
+            {
+                isLoading = false;
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            await JSRuntime.InvokeVoidAsync("alert", ex.Message);
+        }
+    }
+    
+    private async Task HandleLegnthChange(FocusEventArgs e)
+    {
+        try
+        {
+            var length = cutRodQuotes.Length;
+
+            
+            bool isValidDivisor = _helper.IsDivisorOf48(length);
+            if (isValidDivisor)
+            {
+
+                cutRodQuotes.LengthPlus = KerfData;
+                cutRodQuotes.LengthMinus = KerfData;
+                toleranceColorLength = "Red";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            string alertMessage = "Length/Tolerance must not be 0";
+            await JSRuntime.InvokeVoidAsync("alert", alertMessage);
+        }
+
+    }
+   
+
+}

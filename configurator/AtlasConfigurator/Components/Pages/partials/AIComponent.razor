@@ -1,0 +1,381 @@
+﻿@using AtlasConfigurator.Interface
+@using AtlasConfigurator.Models
+@using AtlasConfigurator.Models.AI
+@using AtlasConfigurator.Models.BusinessCentral
+@using AtlasConfigurator.Models.Transformed
+@using AtlasConfigurator.Services
+@using System.Globalization
+@using AtlasConfigurator.Services.AI
+@using AtlasConfigurator.Workers
+@using AtlasConfigurator.Workers.AIWorkers
+@using AtlasConfigurator.Workers.CutPieceSand
+@using BlazorInputFile
+@using Newtonsoft.Json
+@inject IMaterialService MaterialService
+@inject IJSRuntime JSRuntime
+@inject BCItemTransformation bCItemTransformation
+@inject BCItemTransformation transform
+@inject GetSheetPricing getSheetPricing
+@inject WasherCalculation _washerCalculation
+@inject SheetCalculation _sheetCalculation
+@inject RodCalculation _rodCalculation
+@inject CutRodCalculation _cutRodCalculation
+@inject CutSheetCalculation _cutSheetCalculation
+
+@*  https://pragnakalpdev51.pythonanywhere.com/ *@
+
+<div class="w-1/2 pl-2">
+    <div class="mb-4 border p-2 dark:border-gray-600">
+        <div class="flex items-center justify-between bg-blue-600 px-4 py-2 text-white">
+            <div>OVERRIDE</div>
+            <div>
+                <button @onclick="ResetOptions" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">RESET OPTIONS</button>
+                @if (isLoading)
+                {
+                    <button disabled class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">
+                        <svg aria-hidden="true" role="status" class="mr-2 inline h-4 w-4 animate-spin text-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="#E5E7EB" />
+                            <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentColor" />
+                        </svg>
+                        Loading...
+                    </button>
+                }
+                else
+                {
+                    <button @onclick="ProcessJson" class="mr-2 rounded bg-blue-700 px-4 py-1 font-bold text-white hover:bg-blue-800">Process JSON</button>
+                }
+
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12 p-0">
+                <div class="dropzone @dropClass rounded">
+                    <BlazorInputFile.InputFile id="fileInput" multiple title=""
+                    OnChange="HandleFileInputChange"
+                    accept="eml"
+                    @ondragenter="HandleDragEnter"
+                    @ondragleave="HandleDragLeave" />
+
+                </div>
+                @if ((fileTypeError || fileSizeError))
+                {
+                    <ul class="validation-errors mb-0">
+                        @if (fileTypeError)
+                        {
+                            <li class="validation-message">Only image files are accepted.</li>
+                        }
+                        @if (fileSizeError)
+                        {
+                            <li class="validation-message">The max file size is @MaxFileSizeMB MB.</li>
+                        }
+                    </ul>
+                }
+                @if (selectedFiles != null && selectedFiles.Count > 0)
+                {
+                    <div class="col-12">
+                        <ul>
+                            @foreach (var file in selectedFiles)
+                            {
+                                <li>
+                                    @file.Name
+                                    <button class="btn btn-link text-danger p-0 pl-1" type="button"
+                                    @onclick="@(e => RemoveFile(file))">
+                                        <small class="align-text-bottom">Remove</small>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </div>
+
+
+
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public string Customer { get; set; }
+    [Parameter]
+    public EventCallback<SheetQuote> SheetOnAdd { get; set; }
+
+    [Parameter]
+    public EventCallback<WasherQuote> WasherOnAdd { get; set; }
+
+    [Parameter]
+    public EventCallback<RodQuote> RodOnAdd { get; set; }
+
+    [Parameter]
+    public EventCallback<CutRodQuote> CutRodOnAdd { get; set; }
+
+    [Parameter]
+    public EventCallback<CutPieceSandQuote> CutPieceSandOnAdd { get; set; }
+
+    private List<ItemAttributes> itemAttributes = new List<ItemAttributes>();
+    private List<ItemAttributes> rodItemAttributes = new List<ItemAttributes>();
+    private string dropClass = "";
+    const int MaxFileSizeMB = 5;
+    const int MaxFileSize = MaxFileSizeMB * 1024 * 1024; // 5MB
+    private bool fileSizeError = false;
+    private bool fileTypeError = false;
+    private List<IFileListEntry> selectedFiles = new List<IFileListEntry>();
+    private string UploadedFileContent { get; set; } = string.Empty;
+    AIProcessResponse response = new AIProcessResponse();
+    SheetQuote sheetQuote = new SheetQuote();
+    RodQuote rodQuote = new RodQuote();
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            itemAttributes = await transform.TransformBCItemAttributes("Sheet");
+
+        }
+    }
+    private async Task ProcessJson()
+    {
+        if(string.IsNullOrEmpty(Customer))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Customer is Required");
+            return;
+        }
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+            Conversions conversions = new Conversions();
+            LengthWidth lw = new LengthWidth();
+            var sheets = new List<SheetQuote>();//conversions.Sheets(response);
+            decimal maskingTotal = 0;
+            decimal MaskingPriceOneSides = 15;
+            decimal MaskingPriceTwoSides = 20;
+            decimal sandingTotal = 0;
+            Sanding sand = new Sanding();
+            var allowedDimensions = new HashSet<string> { "36", "48", "96" };
+
+            var itemAttributesSheet = await bCItemTransformation.TransformBCItemAttributes("Sheet");
+            var itemAttributesRod = await bCItemTransformation.TransformBCItemAttributes("Rod");
+
+
+            //Rods
+            if (response.rod_value != null)
+            {
+                if (response.rod_value.Count > 0)
+                {
+                    foreach (var rod in response.rod_value)
+                    {
+                        if (string.IsNullOrEmpty(rod.Length))
+                        {
+                            var result = await _rodCalculation.CalcRod(response, Customer, itemAttributesRod);
+                            foreach (var finishedRod in result)
+                            {
+                                await RodOnAdd.InvokeAsync(finishedRod);
+                            }
+                            StateHasChanged();
+                            break;
+                        }
+
+                    }
+                }
+            }
+            //Rods Only
+            if (response.rod_value != null)
+            {
+                if (response.rod_value.Count > 0)
+                {
+                            var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+
+                            var result = await _cutRodCalculation.CalcCutRod(response, Customer, itemAttributesRod, connectionId);
+                            foreach (var finishedRod in result)
+                            {
+                                await CutRodOnAdd.InvokeAsync(finishedRod);
+                            }
+                            StateHasChanged();
+                     
+                }
+            }
+
+
+            //washers and rings
+            if (response.ring_value != null)
+            {
+                if (response.ring_value.Count > 0)
+                {
+                    var result = await _washerCalculation.CalcWasher(response, Customer, itemAttributesSheet);
+                    foreach (var washer in result)
+                    {
+                        await WasherOnAdd.InvokeAsync(washer);
+                    }
+                    StateHasChanged();
+                }
+            }
+            //sheets only not cut
+            if (response.sheet_value != null)
+            {
+                if (response.sheet_value.Count > 0)
+                {
+                    foreach (var sheet in response.sheet_value)
+                    {                        
+                        if (allowedDimensions.Contains(sheet.Length) && allowedDimensions.Contains(sheet.Width))
+                        {
+                            var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+                            var result = await _sheetCalculation.CalcSheet(response, Customer, itemAttributesSheet, connectionId);
+                            if (result.sheetquote == null || result.sheetquote.Count <= 0)
+                            {
+                                await JSRuntime.InvokeVoidAsync("alert", result.error);
+                                break;
+                            }
+                            
+                            foreach (var finishedSheet in result.sheetquote)
+                            {
+                                await SheetOnAdd.InvokeAsync(finishedSheet);
+                            }
+ 
+                            StateHasChanged();
+                            break;
+                        }
+                    }
+                }
+            }
+            //sheets only  cut
+            if (response.sheet_value != null)
+            {
+                if (response.sheet_value.Count > 0)
+                {
+                    foreach (var sheet in response.sheet_value)
+                    {
+                        if (allowedDimensions.Contains(sheet.Length) && allowedDimensions.Contains(sheet.Width))
+                        {
+
+                        }
+                        else
+                        {
+                            var connectionId = await JSRuntime.InvokeAsync<string>("getSignalRConnectionId");
+                            var result = await _cutSheetCalculation.CalcCutSheet(response, Customer, itemAttributesSheet, connectionId);
+                            if(result.cutpiecelist == null || result.cutpiecelist.Count <= 0)
+                            {
+                                await JSRuntime.InvokeVoidAsync("alert", result.error );
+                                break;
+
+                            }
+                            foreach (var finishedSheet in result.cutpiecelist)
+                            {
+                                await CutPieceSandOnAdd.InvokeAsync(finishedSheet);
+                            }
+                            StateHasChanged();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            isLoading = false;
+            await ResetOptions();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+
+    }
+    private async Task ResetOptions()
+    {
+        selectedFiles = new List<IFileListEntry>();
+        response = new AIProcessResponse();
+    }
+
+
+
+
+    private void HandleDragEnter()
+    {
+        dropClass = "dropzone-drag";
+    }
+
+    private void HandleDragLeave()
+    {
+        dropClass = "";
+    }
+    private async Task HandleFileInputChange(IFileListEntry[] files)
+    {
+        dropClass = "";
+        fileSizeError = false;
+        fileTypeError = false;
+        List<string> acceptedFileTypes = new List<string>() { "application/json" };
+        if (files != null)
+        {
+            foreach (var file in files)
+            {
+                bool error = false;
+                if (file.Size > MaxFileSize)
+                {
+                    error = true;
+                    fileSizeError = true;
+                }
+
+                if (!acceptedFileTypes.Contains(file.Type))
+                {
+                    error = true;
+                    fileTypeError = true;
+                }
+
+                using var stream = new MemoryStream();
+                await file.Data.CopyToAsync(stream);
+                stream.Position = 0;
+                var fileContent = stream.ToArray();
+                UploadedFileContent = "";
+
+                // Read and deserialize to AIProcessResponse
+                if (!error)
+                if (!error)
+                {
+                    // Convert byte array to string
+                    var jsonString = System.Text.Encoding.UTF8.GetString(fileContent);
+
+                    try
+                    {
+                        response = new AIProcessResponse();
+                        // Deserialize JSON to AIProcessResponse
+                        response = JsonConvert.DeserializeObject<AIProcessResponse>(jsonString);
+                        if (response != null)
+                        {
+                            // Do something with the response object
+                            UploadedFileContent = "File successfully processed!";
+                        }
+                        else
+                        {
+                            UploadedFileContent = "Failed to process file content.";
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        // Handle deserialization error
+                        UploadedFileContent = $"Error deserializing file content: {ex.Message}";
+                    }
+
+                    selectedFiles.Add(file);
+                }
+            }
+        }
+    }
+    private void RemoveFile(IFileListEntry file)
+    {
+        selectedFiles.Remove(file);
+    }
+
+
+
+
+}
