@@ -2460,7 +2460,12 @@ const MetalFlowApp = () => {
             } else {
                 // For Shapes-Quotes etc.
                 statusFilter = 'inbox';
-                channelFilter = activeChannel;
+                // FIX: Parse channel name if it has a group prefix (e.g. "Shapes-Quotes" -> "Quotes")
+                if (activeChannel.includes('-')) {
+                    channelFilter = activeChannel.split('-')[1];
+                } else {
+                    channelFilter = activeChannel;
+                }
             }
 
             const res = await fetch(`/api/threads?status=${statusFilter}${channelFilter ? `&channel=${encodeURIComponent(channelFilter)}` : ''}`);
@@ -2637,7 +2642,7 @@ const MetalFlowApp = () => {
         };
 
         fetchMessages();
-    }, [activeThreadId, threads, messageRefreshTrigger]);
+    }, [activeThreadId, messageRefreshTrigger]);
 
 
     const activeThread = activeThreadId === 'new'

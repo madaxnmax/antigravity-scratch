@@ -1,4 +1,5 @@
 const express = require('express');
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Nylas = require('nylas');
 const path = require('path');
