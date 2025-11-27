@@ -421,9 +421,10 @@ class DatabaseService {
 
         // Select threads and join with drafts
         // Note: This requires the foreign key to be detected by PostgREST
+        // TEMPORARY FIX: Removed drafts(*) join because the relationship is missing in the DB schema, causing the query to fail.
         let query = this.supabase
             .from('threads')
-            .select('*, drafts(*)')
+            .select('*') // Removed drafts(*)
             .order('last_message_timestamp', { ascending: false })
             .range(offset, offset + limit - 1);
 

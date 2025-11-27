@@ -699,12 +699,10 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
     const [pendingReply, setPendingReply] = useState(draft?.body || "");
 
 
-    const [chatMessages, setChatMessages] = useState([{ id: 1, user: "Mike Ross", text: "Did we confirm specs?", time: "10:30 AM" }]);
-    const [newChatMsg, setNewChatMsg] = useState("");
+
 
     // Mention State
-    const [mentionQuery, setMentionQuery] = useState(null);
-    const [mentionCursorIndex, setMentionCursorIndex] = useState(null);
+
 
     // Internal Comment Box State
     const [isComposing, setIsComposing] = useState(false);
@@ -712,7 +710,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
     const [commentMentionQuery, setCommentMentionQuery] = useState(null);
     const [commentMentionCursorIndex, setCommentMentionCursorIndex] = useState(null);
 
-    const filteredGrants = mentionQuery !== null ? grants.filter(g => (g.name || g.email).toLowerCase().includes(mentionQuery.toLowerCase())) : [];
+
     const commentFilteredGrants = commentMentionQuery !== null ? grants.filter(g => (g.name || g.email).toLowerCase().includes(commentMentionQuery.toLowerCase())) : [];
 
     const crmInfo = thread ? resolveCustomerFromEmail(thread.senderEmail) : null;
@@ -787,49 +785,9 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
         }
     };
 
-    const handleChatInput = (e) => {
-        const val = e.target.value;
-        setNewChatMsg(val);
 
-        // Simple mention detection
-        const lastChar = val.slice(-1);
-        if (lastChar === '@') {
-            setMentionQuery('');
-            setMentionCursorIndex(val.length);
-        } else if (mentionQuery !== null) {
-            if (lastChar === ' ') {
-                setMentionQuery(null);
-            } else {
-                setMentionQuery(val.slice(mentionCursorIndex));
-            }
-        }
-    };
 
-    const insertMention = (name) => {
-        if (mentionCursorIndex === null) return;
-        const before = newChatMsg.slice(0, mentionCursorIndex);
-        const after = newChatMsg.slice(mentionCursorIndex + (mentionQuery || '').length);
-        setNewChatMsg(`${before}${name} ${after}`);
-        setMentionQuery(null);
-        setMentionCursorIndex(null);
-    };
 
-    // Teams Chat Send Logic (Restored)
-    const handleSendChat = () => {
-        if (!newChatMsg.trim()) return;
-
-        // Determine user name from defaultGrantId
-        let userName = "Me";
-        if (defaultGrantId && grants.length > 0) {
-            const grant = grants.find(g => g.id === defaultGrantId);
-            if (grant) {
-                userName = grant.name || grant.email.split('@')[0];
-            }
-        }
-
-        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: newChatMsg, time: "Just now" }]);
-        setNewChatMsg("");
-    };
 
     // Internal Comment Logic
     const handleCommentInput = (e) => {
@@ -871,8 +829,17 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
             }
         }
 
-        // Send to Teams Chat (Right Column)
-        setChatMessages([...chatMessages, { id: Date.now(), user: userName, text: commentText, time: "Just now" }]);
+        // Add to main messages list as a local comment
+        const newMsg = {
+            id: Date.now(),
+            sender: 'local',
+            name: userName,
+            text: commentText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isLocal: true
+        };
+
+        setMessages([...messages, newMsg]);
         setCommentText("");
     };
 
@@ -1209,42 +1176,54 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 bg-slate-50">
-                    {messages.map(msg => (
-                        <div key={msg.id} className={`flex flex-col w-full ${msg.sender === 'system' ? 'items-center' : 'items-start'}`}>
-                            {msg.sender === 'system' ? (
-                                <div className="bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm flex items-center gap-4 text-xs text-gray-600">
-                                    <div className="flex items-center gap-2 font-bold"><CheckCircle size={14} className="text-green-500" /> Quote #{msg.quoteId} Generated</div>
-                                    <div className="h-4 w-px bg-gray-300"></div>
-                                    <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: View Details"); onViewQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium">View Details</button>
-                                    <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: Clone Quote"); onCloneQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
+                    {messages.map(msg => {
+                        if (msg.isLocal) {
+                            return (
+                                <div key={msg.id} className="flex flex-col items-end w-full">
+                                    <div className="flex items-center gap-1 mb-0.5"><span className="text-[10px] font-bold text-gray-700">{msg.name}</span></div>
+                                    <div className="rounded px-2 py-1.5 text-xs max-w-[85%] bg-blue-100 text-blue-900">{msg.text}</div>
+                                    <div className="text-[10px] text-gray-400 mt-0.5">{msg.timestamp}</div>
                                 </div>
-                            ) : (
-                                <div className="w-full max-w-3xl">
-                                    <div className="mb-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <div className={`w-6 h-6 rounded bg-slate-700 text-white flex items-center justify-center text-xs font-bold`}>{msg.name ? msg.name[0] : '?'}</div>
-                                            <span className="text-sm font-bold text-gray-900">{msg.name}</span>
-                                            {/* Full Timestamp */}
-                                            <span className="text-xs text-gray-400 ml-auto" title={msg.rawDate ? new Date(msg.rawDate * 1000).toLocaleString() : ''}>
-                                                {msg.rawDate
-                                                    ? new Date(msg.rawDate * 1000).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                                    : msg.timestamp}
-                                            </span>
+                            );
+                        }
+
+                        return (
+                            <div key={msg.id} className={`flex flex-col w-full ${msg.sender === 'system' ? 'items-center' : 'items-start'}`}>
+                                {msg.sender === 'system' ? (
+                                    <div className="bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm flex items-center gap-4 text-xs text-gray-600">
+                                        <div className="flex items-center gap-2 font-bold"><CheckCircle size={14} className="text-green-500" /> Quote #{msg.quoteId} Generated</div>
+                                        <div className="h-4 w-px bg-gray-300"></div>
+                                        <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: View Details"); onViewQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium">View Details</button>
+                                        <button type="button" onClick={(e) => { console.log("BUTTON CLICKED: Clone Quote"); onCloneQuote(msg.quoteId, e); }} className="text-blue-600 hover:underline font-medium flex items-center gap-1"><Copy size={10} /> Clone</button>
+                                    </div>
+                                ) : (
+                                    <div className="w-full max-w-3xl">
+                                        <div className="mb-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className={`w-6 h-6 rounded bg-slate-700 text-white flex items-center justify-center text-xs font-bold`}>{msg.name ? msg.name[0] : '?'}</div>
+                                                <span className="text-sm font-bold text-gray-900">{msg.name}</span>
+                                                {/* Full Timestamp */}
+                                                <span className="text-xs text-gray-400 ml-auto" title={msg.rawDate ? new Date(msg.rawDate * 1000).toLocaleString() : ''}>
+                                                    {msg.rawDate
+                                                        ? new Date(msg.rawDate * 1000).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                                        : msg.timestamp}
+                                                </span>
+                                            </div>
+                                            <div className="text-xs text-gray-500 space-y-0.5 pl-8 border-l-2 border-gray-100 ml-3">
+                                                <div><span className="font-bold">Subject:</span> {msg.subject}</div>
+                                                <div><span className="font-bold">From:</span> {msg.from?.map(f => f.name ? `${f.name} <${f.email}>` : f.email).join(', ')}</div>
+                                                <div><span className="font-bold">To:</span> {msg.to?.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
+                                                {msg.cc && msg.cc.length > 0 && <div><span className="font-bold">Cc:</span> {msg.cc.map(c => c.name ? `${c.name} <${c.email}>` : c.email).join(', ')}</div>}
+                                            </div>
                                         </div>
-                                        <div className="text-xs text-gray-500 space-y-0.5 pl-8 border-l-2 border-gray-100 ml-3">
-                                            <div><span className="font-bold">Subject:</span> {msg.subject}</div>
-                                            <div><span className="font-bold">From:</span> {msg.from?.map(f => f.name ? `${f.name} <${f.email}>` : f.email).join(', ')}</div>
-                                            <div><span className="font-bold">To:</span> {msg.to?.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ')}</div>
-                                            {msg.cc && msg.cc.length > 0 && <div><span className="font-bold">Cc:</span> {msg.cc.map(c => c.name ? `${c.name} <${c.email}>` : c.email).join(', ')}</div>}
+                                        <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4 shadow-sm rounded-r-lg">
+                                            <div dangerouslySetInnerHTML={{ __html: msg.text }} className="prose prose-sm max-w-none" />
                                         </div>
                                     </div>
-                                    <div className="bg-white p-4 text-sm text-gray-800 border-l-2 border-gray-200 pl-4 shadow-sm rounded-r-lg">
-                                        <div dangerouslySetInnerHTML={{ __html: msg.text }} className="prose prose-sm max-w-none" />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                                )}
+                            </div>
+                        )
+                    })}
                     <div ref={messagesEndRef} />
                 </div>
 
@@ -1420,54 +1399,7 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
                 </div>
             </div>
 
-            {/* RIGHT COLUMN */}
-            <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full flex-shrink-0">
-                <div className="flex-1 overflow-y-auto p-5 border-b border-gray-200">
-                    <h3 className="font-bold text-gray-500 uppercase text-xs mb-4">Customer 360</h3>
-                    {crmInfo ? (
-                        <div className="space-y-6">
-                            <div className="p-3 bg-gray-50 rounded border border-gray-200">
-                                <div className="text-xs text-gray-500">YTD Spend</div>
-                                <div className="text-xl font-bold text-gray-900">{crmInfo.ytdSpend}</div>
-                            </div>
-                        </div>
-                    ) : <div className="text-sm text-gray-400 italic">No CRM data available.</div>}
-                </div>
-                <div className="h-[45%] flex flex-col bg-slate-50 border-t border-gray-200 relative">
-                    <div className="p-3 bg-white border-b border-gray-200 flex justify-between items-center">
-                        <h3 className="font-bold text-blue-800 text-xs uppercase flex items-center gap-2"><Users size={14} /> Teams Chat</h3>
-                        <span className="text-[10px] text-green-600 font-bold">● Online</span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                        {chatMessages.map(msg => (
-                            <div key={msg.id} className={`flex flex-col ${msg.user === 'Me' || (grants.find(g => g.name === msg.user || g.email.startsWith(msg.user))) ? 'items-end' : 'items-start'}`}>
-                                <div className="flex items-center gap-1 mb-0.5"><span className="text-[10px] font-bold text-gray-700">{msg.user}</span></div>
-                                <div className={`rounded px-2 py-1.5 text-xs max-w-[85%] ${msg.user === 'Me' || (grants.find(g => g.name === msg.user || g.email.startsWith(msg.user))) ? 'bg-blue-100 text-blue-900' : 'bg-white border border-gray-200 text-gray-800'}`}>{msg.text}</div>
-                            </div>
-                        ))}
-                    </div>
 
-                    {/* Mention Popover */}
-                    {mentionQuery !== null && filteredGrants.length > 0 && (
-                        <div className="absolute bottom-12 left-2 right-2 bg-white border border-gray-200 shadow-lg rounded-md z-20 max-h-40 overflow-y-auto">
-                            {filteredGrants.map(g => (
-                                <button key={g.id} onClick={() => insertMention(g.name || g.email)} className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-[10px]">{g.email[0].toUpperCase()}</div>
-                                    <div>
-                                        <div className="font-bold text-gray-900">{g.name || g.email}</div>
-                                        <div className="text-[10px] text-gray-500">{g.email}</div>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className="p-2 bg-white border-t border-gray-200 flex gap-1">
-                        <input className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 outline-none" placeholder="Message... (@ to mention)" value={newChatMsg} onChange={handleChatInput} onKeyDown={(e) => e.key === 'Enter' && handleSendChat()} />
-                        <button onClick={handleSendChat} className="bg-blue-700 text-white p-1.5 rounded"><Send size={12} /></button>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 };
