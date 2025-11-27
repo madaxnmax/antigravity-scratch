@@ -2775,7 +2775,13 @@ const MetalFlowApp = () => {
                 }
             } else {
                 // It's a Shared Inbox
-                payload.channel = targetChannel;
+                // FIX: Normalize channel name if it has a prefix (e.g. Shapes-Quotes -> Quotes)
+                let finalChannel = targetChannel;
+                if (targetChannel.includes('-')) {
+                    finalChannel = targetChannel.split('-')[1];
+                }
+                
+                payload.channel = finalChannel;
                 payload.status = 'inbox'; // Ensure it's visible (unarchive if needed)
             }
 
