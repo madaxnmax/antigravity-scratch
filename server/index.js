@@ -1,3 +1,4 @@
+
 const express = require('express');
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
@@ -488,7 +489,7 @@ app.post('/api/ai/parse-email', async (req, res) => {
         res.json(result);
     } catch (error) {
         logger.error('Failed to parse email', error);
-        res.status(500).json({ error: 'Failed to parse email' });
+        res.status(500).json({ error: 'Failed to parse email', details: error.message });
     }
 });
 
@@ -537,11 +538,27 @@ app.post('/api/pricing/calculate', async (req, res) => {
 
 app.get('/api/materials', async (req, res) => {
     try {
-        const items = await pricingService.getAllItems();
+        const type = req.query.type;
+        const items = type ? await pricingService.getItemsByType(type) : await pricingService.getAllItems();
         res.json(items);
     } catch (error) {
         logger.error('Materials API Error:', error);
         res.status(500).json({ error: 'Failed to fetch materials' });
+    }
+});
+
+app.post('/api/materials', async (req, res) => {
+    try {
+        const { materials } = req.body;
+        if (!materials || !Array.isArray(materials)) {
+            return res.status(400).json({ error: 'Invalid materials data' });
+        }
+
+        await dbService.upsertMaterials(materials);
+        res.json({ success: true, count: materials.length });
+    } catch (error) {
+        logger.error('Materials Import Error:', error);
+        res.status(500).json({ error: 'Failed to import materials' });
     }
 });
 

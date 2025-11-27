@@ -154,19 +154,28 @@ class AIService {
                 messages: [{ role: "user", content: prompt }],
                 model: modelName,
                 temperature: 0,
+                response_format: { type: "json_object" }
             });
 
             const responseContent = completion.choices[0].message.content;
 
             // Clean up response if it contains markdown code blocks
             const cleanedResponse = responseContent.replace(/```json\n?|\n?```/g, '').trim();
+            logger.info("AI Raw Response:", { responseContent });
+            logger.info("AI Cleaned Response:", { cleanedResponse });
 
             let parsedData;
             try {
                 parsedData = JSON.parse(cleanedResponse);
             } catch (e) {
                 logger.warn("Failed to parse JSON directly, trying to fix common issues", { response: cleanedResponse });
-                throw e;
+                // Try replacing single quotes with double quotes (naive fix for Python-style dicts)
+                try {
+                    const fixedResponse = cleanedResponse.replace(/'/g, '"').replace(/False/g, '"false"').replace(/True/g, '"true"');
+                    parsedData = JSON.parse(fixedResponse);
+                } catch (e2) {
+                    throw e;
+                }
             }
 
             // Post-processing (synonyms and validation)

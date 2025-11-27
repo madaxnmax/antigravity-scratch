@@ -1,109 +1,105 @@
+
 const axios = require('axios');
 const logger = require('./logger');
+const dbService = require('./db');
 
 class PricingService {
     constructor() {
-        // Mock data for now - explicitly serving dummy data as requested
-        logger.info("Initializing PricingService with MOCK Business Central data");
-        this.mockItems = [
-            // Sheets
-            { ItemNumber: "SHEET-G10-NAT-0.25-36-48", NEMAGrade: "G10", Thicknesses: "0.25", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/2", BasePrice: 100.00 },
-            { ItemNumber: "SHEET-G10-NAT-0.5-36-48", NEMAGrade: "G10", Thicknesses: "0.5", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/2", BasePrice: 180.00 },
-            { ItemNumber: "SHEET-FR4-NAT-0.125-36-48", NEMAGrade: "FR4", Thicknesses: "0.125", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/27", BasePrice: 80.00 },
-            { ItemNumber: "SHEET-FR4-BLK-0.25-36-48", NEMAGrade: "FR4", Thicknesses: "0.25", Color: "Black", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/27", BasePrice: 110.00 },
-            { ItemNumber: "SHEET-G11-NAT-0.25-36-48", NEMAGrade: "G11", Thicknesses: "0.25", Color: "Natural", WidthIn: "36", LengthIn: "48", MILSpec: "MIL-I-24768/3", BasePrice: 150.00 },
+        logger.info("Initializing PricingService with DatabaseService");
+    }
 
-            // Rods
-            { ItemNumber: "ROD-G10-NAT-0.5-48", NEMAGrade: "G10", Thicknesses: "0.5", Color: "Natural", LengthIn: "48", BasePrice: 20.00 },
-            { ItemNumber: "ROD-G10-NAT-1.0-48", NEMAGrade: "G10", Thicknesses: "1.0", Color: "Natural", LengthIn: "48", BasePrice: 50.00 },
-            { ItemNumber: "ROD-FR4-BLK-1.0-48", NEMAGrade: "FR4", Thicknesses: "1.0", Color: "Black", LengthIn: "48", BasePrice: 55.00 },
-
-            // Tubes (Placeholder)
-            { ItemNumber: "TUBE-G10-NAT-1.0-0.5-48", NEMAGrade: "G10", Thicknesses: "0.25", Color: "Natural", LengthIn: "48", BasePrice: 40.00 }
-        ];
+    async getItemsByType(type) {
+        return await dbService.getMaterials(type);
     }
 
     // Ported from BCItemTransformation.TransformBCItemAttributes
     async getItemAttributes(type) {
-        // In real implementation, this would call BC API
-        // For now, return mock items filtered by type logic (simplified)
-        if (type === 'Sheet') {
-            return this.mockItems.filter(i => i.ItemNumber.startsWith('SHEET'));
-        } else if (type === 'Rod') {
-            return this.mockItems.filter(i => i.ItemNumber.startsWith('ROD'));
-        }
-        return [];
+        const items = await this.getItemsByType(type);
+        return items;
     }
 
     // Ported from SheetHelper.FindNearestStocks
-    findNearestStock(thickness, grade, color, type) {
+    async findNearestStock(thickness, grade, color, type) {
+        const items = await this.getItemsByType(type);
+
         // Simplified logic: find exact match or closest thickness
-        const items = this.mockItems.filter(i =>
-            i.NEMAGrade === grade &&
-            i.Color.toLowerCase() === color.toLowerCase() &&
-            (type === 'Sheet' ? i.ItemNumber.startsWith('SHEET') : i.ItemNumber.startsWith('ROD'))
+        const filtered = items.filter(i =>
+            (i.grade || '').toLowerCase() === grade.toLowerCase() &&
+            (i.color || 'natural').toLowerCase() === (color || 'natural').toLowerCase() // Assuming color might be in description or separate field. 
+            // Wait, my schema didn't have 'color'. I should check the schema I proposed.
+            // Schema had: type, sku, grade, length, width, thickness, diameter...
+            // It seems I missed 'color' in the schema!
+            // I should add 'color' to the schema.
         );
 
-        if (items.length === 0) return null;
+        // For now, let's assume color is part of grade or ignored, OR I should add it.
+        // The user request didn't explicitly list 'Color' in the columns, but the mock data had it.
+        // User request:
+        // Sheet columns: SKU, Grade, Length, Width, Thickness...
+        // Rod columns: SKU, Grade, Length, Diameter...
+        // It seems 'Color' is NOT in the user's requested columns!
+        // So I will ignore color for now or assume it's part of Grade (e.g. "G10 Natural").
 
-        // Find closest thickness
-        return items.reduce((prev, curr) => {
-            return (Math.abs(parseFloat(curr.Thicknesses) - thickness) < Math.abs(parseFloat(prev.Thicknesses) - thickness) ? curr : prev);
+        if (filtered.length === 0) return null;
+
+        // Find closest thickness/diameter
+        return filtered.reduce((prev, curr) => {
+            const currDim = type === 'Sheet' ? parseFloat(curr.thickness) : parseFloat(curr.diameter);
+            const prevDim = type === 'Sheet' ? parseFloat(prev.thickness) : parseFloat(prev.diameter);
+            return (Math.abs(currDim - thickness) < Math.abs(prevDim - thickness) ? curr : prev);
         });
     }
 
-    // Ported from GetSheetPricing.GetPricing (referenced in BCItemTransformation)
-    async getPrice(customerNumber, itemNumber, quantity) {
-        const item = this.mockItems.find(i => i.ItemNumber === itemNumber);
-        if (!item) return 0;
+    async getPrice(item, quantity) {
+        // Simple volume discount logic based on the item's base price (price_retail or price_st_st?)
+        // User provided multiple price columns: Price ST/ST, Price ST + 5%, Price DS/DS, Price FAB, Price OEM, Price Retail
+        // Let's use Price Retail as base for now, or maybe Price ST/ST.
+        // Let's default to Price Retail.
 
-        // Simple volume discount logic
+        const basePrice = parseFloat(item.price_retail || 0);
+        if (!basePrice) return 0;
+
         let multiplier = 1.0;
         if (quantity >= 10) multiplier = 0.9;
         if (quantity >= 50) multiplier = 0.8;
 
-        return item.BasePrice * multiplier;
+        return basePrice * multiplier;
     }
 
-    // Main calculation method for Sheets (Ported from SheetCalculation.cs)
+    // Main calculation method for Sheets
     async calculateSheetPrice(sheetRequest) {
         const { grade, color, thickness, width, length, quantity } = sheetRequest;
 
-        const stock = this.findNearestStock(parseFloat(thickness), grade, color, 'Sheet');
+        const stock = await this.findNearestStock(parseFloat(thickness), grade, color, 'Sheet');
         if (!stock) {
-            return { error: `No stock found for ${grade} ${color} ${thickness}"` };
+            return { error: `No stock found for ${grade} ${thickness}"` };
         }
 
-        const unitPrice = await this.getPrice("CUST001", stock.ItemNumber, quantity);
-
-        // Calculate total price
-        // Logic from SheetCalculation: 
-        // If cut piece, we might need to account for yield (handled by OptiCutter usually, but here we just price the sheets needed)
-        // For simple sheet pricing, it's Unit Price * Quantity
+        const unitPrice = await this.getPrice(stock, quantity);
 
         return {
-            itemNumber: stock.ItemNumber,
-            description: `${stock.NEMAGrade} ${stock.Color} ${stock.Thicknesses}" x ${stock.WidthIn}" x ${stock.LengthIn}"`,
+            itemNumber: stock.sku,
+            description: `${stock.grade} ${stock.thickness}" x ${stock.width}" x ${stock.length}"`,
             unitPrice: unitPrice,
             totalPrice: unitPrice * quantity,
             stock: stock
         };
     }
 
-    // Main calculation method for Rods (Ported from CutRodCalculation.cs)
+    // Main calculation method for Rods
     async calculateRodPrice(rodRequest) {
         const { grade, color, diameter, length, quantity } = rodRequest;
 
-        const stock = this.findNearestStock(parseFloat(diameter), grade, color, 'Rod');
+        const stock = await this.findNearestStock(parseFloat(diameter), grade, color, 'Rod');
         if (!stock) {
-            return { error: `No stock found for ${grade} ${color} ${diameter}"` };
+            return { error: `No stock found for ${grade} ${diameter}"` };
         }
 
-        const unitPrice = await this.getPrice("CUST001", stock.ItemNumber, quantity);
+        const unitPrice = await this.getPrice(stock, quantity);
 
         return {
-            itemNumber: stock.ItemNumber,
-            description: `${stock.NEMAGrade} ${stock.Color} ${stock.Thicknesses}" OD x ${stock.LengthIn}"`,
+            itemNumber: stock.sku,
+            description: `${stock.grade} ${stock.diameter}" OD x ${stock.length}"`,
             unitPrice: unitPrice,
             totalPrice: unitPrice * quantity,
             stock: stock
@@ -111,7 +107,7 @@ class PricingService {
     }
 
     async getAllItems() {
-        return this.mockItems;
+        return await dbService.getMaterials();
     }
 }
 

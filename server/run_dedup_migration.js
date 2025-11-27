@@ -1,12 +1,22 @@
+require('dotenv').config();
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const connectionString = 'postgresql://postgres:VVGefPLMT6NpIJmT@db.lbderouteefxjkzufqkj.supabase.co:5432/postgres?sslmode=require';
+const connectionString = process.env.DATABASE_URL;
 const sqlPath = path.join(__dirname, 'migration_add_deduplication_fields.sql');
 
 async function run() {
-    const client = new Client({ connectionString });
+    if (!connectionString) {
+        console.error("DATABASE_URL is not set in .env");
+        return;
+    }
+
+    const client = new Client({
+        connectionString,
+        ssl: { rejectUnauthorized: false } // Required for Supabase pooler usually
+    });
+
     try {
         await client.connect();
         console.log("Connected to DB");

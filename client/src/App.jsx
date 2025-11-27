@@ -241,7 +241,15 @@ const generateOutlookBody = (newReplyHtml, originalMessage) => {
     <br>
     `;
 
-    return newReplyHtml + "<br><br>" + headerBlock + (originalMessage.text || ""); // originalMessage.text contains HTML body in our mapping
+    let originalBody = originalMessage.text || "";
+
+    // Attempt to extract content inside <body> tags
+    const bodyMatch = originalBody.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    if (bodyMatch && bodyMatch[1]) {
+        originalBody = bodyMatch[1];
+    }
+
+    return newReplyHtml + "<br><br>" + headerBlock + originalBody;
 };
 
 // Helper Icon Component
@@ -423,14 +431,18 @@ const ConfigForm = ({ type, formState, onChange }) => {
 
 // --- 4. MAJOR COMPONENTS ---
 
+import MaterialManager from './MaterialManager';
+
 const SettingsView = ({ onClose, allTags }) => {
     return (
-        <div className="p-8 bg-white h-full">
+        <div className="p-8 bg-white h-full flex flex-col">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Settings</h1>
                 <button onClick={onClose}><X /></button>
             </div>
-            <p className="text-gray-500">Settings module placeholder</p>
+            <div className="flex-1 overflow-hidden">
+                <MaterialManager />
+            </div>
         </div>
     );
 };
@@ -1293,9 +1305,22 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
                             <div className="bg-gray-50 border-b border-gray-200 p-3 px-4 rounded-t-lg">
                                 <div className="flex justify-between items-center mb-3">
                                     <h3 className="font-bold text-gray-700 text-sm">Reply</h3>
-                                    <button onClick={() => setIsComposing(false)} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded">
-                                        <X size={16} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={onQuoteWithAI} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Quote with AI">
+                                            <Bot size={18} />
+                                        </button>
+                                        <button onClick={() => {
+                                            console.log("--- DEBUG METADATA ---");
+                                            console.log("Thread:", thread);
+                                            console.log("Messages:", messages);
+                                            alert("Metadata logged to console. Please open Developer Tools (F12) -> Console to view.");
+                                        }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Debug Metadata">
+                                            <Info size={18} />
+                                        </button>
+                                        <button onClick={() => setIsComposing(false)} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="grid gap-2">
                                     {/* From Selector */}
