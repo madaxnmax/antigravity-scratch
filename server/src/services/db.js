@@ -347,34 +347,94 @@ class DatabaseService {
         }
     }
 
+    // --- Synonyms ---
+    async getSynonymDictionary() {
+        if (!this.supabase) return {};
+
+        const { data, error } = await this.supabase
+            .from('synonyms')
+            .select('standard_term, synonym_term');
+
+        if (error) {
+            logger.error('DatabaseService: Failed to get synonyms', error);
+            // Fallback to empty object or maybe throw? 
+            // For now, return empty to avoid crashing AI service
+            return {};
+        }
+
+        // Transform to format: { "Standard": ["syn1", "syn2"] }
+        const dictionary = {};
+        data.forEach(row => {
+            if (!dictionary[row.standard_term]) {
+                dictionary[row.standard_term] = [];
+            }
+            dictionary[row.standard_term].push(row.synonym_term);
+        });
+        return dictionary;
+    }
+
+    // --- Drafts ---
+    async getDraft(threadId) {
+        if (!this.supabase) return null;
+        const { data, error } = await this.supabase
+            .from('drafts')
+            .select('*')
+            .eq('thread_id', threadId)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+            logger.error('DatabaseService: Failed to get draft', error);
+        }
+        return data;
+    }
+
+    async upsertDraft(draft) {
+        if (!this.supabase) return null;
+
+        // Ensure to/cc are JSON
+        const payload = {
+            thread_id: draft.thread_id,
+            subject: draft.subject,
+            body: draft.body,
+            "to": draft.to || [],
+            cc: draft.cc || [],
+            updated_at: new Date()
+        };
+
+        const { data, error } = await this.supabase
+            .from('drafts')
+            .upsert(payload, { onConflict: 'thread_id' })
+            .select()
+            .single();
+
+        if (error) {
+            logger.error('DatabaseService: Failed to upsert draft', error);
+            throw error;
+        }
+        return data;
+    }
+
     async getThreads(limit = 50, offset = 0, status = null, channel = null) {
         if (!this.supabase) return [];
 
         logger.info(`DatabaseService: getThreads called with status=${status}, channel=${channel}`);
 
+        // Select threads and join with drafts
+        // Note: This requires the foreign key to be detected by PostgREST
         let query = this.supabase
             .from('threads')
-            .select('*')
+            .select('*, drafts(*)')
             .order('last_message_timestamp', { ascending: false })
             .range(offset, offset + limit - 1);
 
         // Simplified Filtering Logic
         if (channel === 'Sent') {
-            // Filter by tags containing 'sent' or 'Sent'
-            // Note: Supabase 'cs' operator checks if array contains value.
-            // We'll check for both common cases.
             query = query.or('tags.cs.{Sent},tags.cs.{sent},tags.cs.{SENT}');
         } else if (channel && channel !== 'Inbox') {
-            // Case 1: Specific Channel (e.g. 'Sales', 'Logistics')
-            // Show all threads in this channel that aren't deleted/spam
             query = query.eq('channel', channel).neq('status', 'trash').neq('status', 'spam');
         } else if (status && status !== 'inbox') {
-            // Case 2: Specific Status (e.g. 'done', 'trash', 'spam')
-            // Show threads with this status, regardless of channel (unless we want to restrict, but usually 'Done' is global)
             query = query.eq('status', status);
         } else {
-            // Case 3: Inbox (Default)
-            // Show threads with inbox-like status AND (in Inbox channel OR no channel)
             query = query.or('status.eq.inbox,status.eq.Open,status.is.null');
             query = query.or('channel.eq.Inbox,channel.is.null');
         }
@@ -385,8 +445,33 @@ class DatabaseService {
             logger.error('DatabaseService: Failed to fetch threads', error);
             throw error;
         }
-        logger.info(`DatabaseService: Fetched ${data.length} threads`);
-        return data;
+
+        // Flatten structure: thread.draft = thread.drafts (object)
+        // PostgREST returns 'drafts' as an object (single) or array depending on relationship.
+        // Since it's 1:1 (or 1:many but unique), it might be an object or array.
+        // Let's handle both.
+        const threads = data.map(thread => {
+            let draft = null;
+            if (thread.drafts) {
+                if (Array.isArray(thread.drafts)) {
+                    draft = thread.drafts[0] || null;
+                } else {
+                    draft = thread.drafts;
+                }
+            }
+            // Fallback to old 'draft' column if new table is empty/missing (optional, but good for migration)
+            if (!draft && thread.draft) {
+                // draft = thread.draft; // Commented out to enforce new source of truth
+            }
+
+            return {
+                ...thread,
+                draft: draft // Override the old 'draft' column value with the joined table value
+            };
+        });
+
+        logger.info(`DatabaseService: Fetched ${threads.length} threads`);
+        return threads;
     }
 
     async getMessages(threadId) {

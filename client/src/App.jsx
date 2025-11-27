@@ -1170,6 +1170,14 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWit
                             </button>
                             <button onClick={() => onMarkAsNew(thread.id, true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Mail size={12} /> Mark as New</button>
                             <button onClick={onArchive} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Archive size={12} /> Archive</button>
+                            <button onClick={() => {
+                                console.log("--- DEBUG METADATA ---");
+                                console.log("Thread:", thread);
+                                console.log("Messages:", messages);
+                                alert("Metadata logged to console. Please open Developer Tools (F12) -> Console to view.");
+                            }} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1" title="Debug Metadata">
+                                <Info size={12} /> Debug
+                            </button>
                         </div>
                     </div>
 

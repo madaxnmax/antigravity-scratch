@@ -1,7 +1,7 @@
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
-const synonymMappings = require('./synonym_dictionary.json');
+const db = require('./db');
 const logger = require('./logger');
 
 class AIService {
@@ -16,11 +16,25 @@ class AIService {
             this.openai = null;
             logger.warn('OPENAI_API_KEY missing - AI features will be disabled');
         }
-        this.synonymMappings = synonymMappings;
+        this.synonymMappings = null; // Will be loaded from DB
+    }
+
+    async ensureSynonymsLoaded() {
+        if (this.synonymMappings) return;
+
+        logger.info('AIService: Loading synonyms from database...');
+        try {
+            this.synonymMappings = await db.getSynonymDictionary();
+            logger.info(`AIService: Loaded ${Object.keys(this.synonymMappings).length} synonym groups.`);
+        } catch (error) {
+            logger.error('AIService: Failed to load synonyms', error);
+            this.synonymMappings = {}; // Fallback to empty to prevent crash
+        }
     }
 
     replaceSynonyms(text) {
         if (!text) return "unknown";
+        if (!this.synonymMappings) return text; // Should be loaded by now
 
         // Replace "x" in dimensions to avoid replacing it as a synonym
         text = text.replace(/(\d+)\s*[xX]\s*(\d+)/g, '$1 _x_ $2');
@@ -75,6 +89,9 @@ class AIService {
             logger.error('Attempted to parse email without OpenAI API key');
             throw new Error('OpenAI API key is not configured');
         }
+
+        // Ensure synonyms are loaded before processing
+        await this.ensureSynonymsLoaded();
 
         const modelName = await this.fetchFinetuningStatus();
         logger.info(`Using model: ${modelName}`);
