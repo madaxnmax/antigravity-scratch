@@ -48,11 +48,36 @@ class AIService {
         return null;
     }
 
+    async fetchFinetuningStatus() {
+        if (!this.openai) return "gpt-4-turbo-preview";
+
+        try {
+            const response = await this.openai.fineTuning.jobs.list({ limit: 10 });
+            const jobs = response.data.sort((a, b) => b.created_at - a.created_at);
+
+            for (const job of jobs) {
+                if (job.status === 'succeeded') {
+                    logger.info(`Found latest fine-tuned model: ${job.fine_tuned_model}`);
+                    return job.fine_tuned_model;
+                }
+            }
+
+            logger.warn('No succeeded fine-tuning jobs found, using fallback');
+            return "ft:gpt-4o-2024-08-06:atlas-fibre-rd::ARQ1I9w1"; // Fallback from backup
+        } catch (error) {
+            logger.error('Error fetching fine-tuning status:', error);
+            return "ft:gpt-4o-2024-08-06:atlas-fibre-rd::ARQ1I9w1"; // Fallback
+        }
+    }
+
     async parseEmail(content) {
         if (!this.openai) {
             logger.error('Attempted to parse email without OpenAI API key');
             throw new Error('OpenAI API key is not configured');
         }
+
+        const modelName = await this.fetchFinetuningStatus();
+        logger.info(`Using model: ${modelName}`);
 
         const prompt = `
         We are an organization that sells various grades of plastic in different forms—sheets, rods, tubes, and rings. Each quote is customized based on the customer’s request, which is often presented in unstructured email formats. To generate accurate quotes, we need to convert this information into a structured table format. Different materials and larger sizes have higher costs, so our columns include all the variables necessary for our quote configurator to deliver precise pricing. We receive quotation requests from customers via email.
@@ -127,13 +152,22 @@ class AIService {
         try {
             const completion = await this.openai.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "gpt-4-turbo-preview", // Using a capable model
-                response_format: { type: "json_object" },
+                model: modelName,
                 temperature: 0,
             });
 
             const responseContent = completion.choices[0].message.content;
-            let parsedData = JSON.parse(responseContent);
+
+            // Clean up response if it contains markdown code blocks
+            const cleanedResponse = responseContent.replace(/```json\n?|\n?```/g, '').trim();
+
+            let parsedData;
+            try {
+                parsedData = JSON.parse(cleanedResponse);
+            } catch (e) {
+                logger.warn("Failed to parse JSON directly, trying to fix common issues", { response: cleanedResponse });
+                throw e;
+            }
 
             // Post-processing (synonyms and validation)
             const processItems = (items) => {

@@ -149,6 +149,29 @@ class DatabaseService {
     async upsertMessage(message) {
         if (!this.supabase) return null;
 
+        // Deduplication Logic:
+        // 1. If internet_message_id is present, check if it exists.
+        if (message.internet_message_id) {
+            const { data: existing } = await this.supabase
+                .from('messages')
+                .select('id, thread_id')
+                .eq('internet_message_id', message.internet_message_id)
+                .single();
+
+            if (existing) {
+                // Message exists.
+                // If thread_id matches, we can update it (or skip).
+                // If thread_id differs, we have a conflict.
+                // Spec says: "If two messages have identical message_id or internet_message_id, treat them as the same message"
+                // We will update the existing message to ensure we have the latest metadata, but we keep the original ID to avoid breaking references.
+                // However, if the new message has a DIFFERENT thread_id, we might want to update the thread_id if the new one is "more canonical" (e.g. from a newer sync).
+                // For now, we'll just update the existing record with the new details, effectively merging them.
+
+                // Note: We use the EXISTING ID for the update to ensure we overwrite the correct row.
+                message.id = existing.id;
+            }
+        }
+
         const { error } = await this.supabase
             .from('messages')
             .upsert({
@@ -160,7 +183,10 @@ class DatabaseService {
                 "to": message.to,
                 cc: message.cc,
                 date: message.date,
-                created_at: new Date(message.date * 1000) // Ensure creation time matches message time
+                created_at: new Date(message.date * 1000),
+                internet_message_id: message.internet_message_id,
+                in_reply_to: message.in_reply_to,
+                "references": message.references
             }, { onConflict: 'id' });
 
         if (error) {
@@ -181,7 +207,12 @@ class DatabaseService {
             .range(offset, offset + limit - 1);
 
         // Simplified Filtering Logic
-        if (channel && channel !== 'Inbox') {
+        if (channel === 'Sent') {
+            // Filter by tags containing 'sent' or 'Sent'
+            // Note: Supabase 'cs' operator checks if array contains value.
+            // We'll check for both common cases.
+            query = query.or('tags.cs.{Sent},tags.cs.{sent},tags.cs.{SENT}');
+        } else if (channel && channel !== 'Inbox') {
             // Case 1: Specific Channel (e.g. 'Sales', 'Logistics')
             // Show all threads in this channel that aren't deleted/spam
             query = query.eq('channel', channel).neq('status', 'trash').neq('status', 'spam');

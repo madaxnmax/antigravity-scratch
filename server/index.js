@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const logger = require('./src/services/logger');
+const dbService = require('./src/services/db');
+const syncService = require('./src/services/sync');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -90,16 +92,9 @@ app.get('/nylas', async (req, res) => {
             return res.json({ status: 'Connected', message: 'No grants found. Please authenticate a user.' });
         }
 
-        // Fetch threads for the first grant
-        const threads = await nylas.threads.list({
-            identifier: firstGrant.id,
-            queryParams: { limit: 10 }
-        });
-
         res.json({
             status: 'Connected',
-            user: firstGrant.email,
-            threads: threads.data
+            user: firstGrant.email
         });
     } catch (error) {
         logger.error("Nylas Error:", error);
@@ -202,95 +197,48 @@ app.post('/nylas/send', async (req, res) => {
         });
 
         logger.info(`Email sent successfully`, { id: sentMessage.data.id });
+
+        // Save sent message to DB
+        try {
+            await dbService.upsertMessage({
+                ...sentMessage.data,
+                thread_id: sentMessage.data.threadId || (replyToMessageId ? 'unknown' : sentMessage.data.id) // Fallback if threadId missing
+            });
+
+            // Update thread tags to include 'Sent'
+            // We need to fetch existing tags first to preserve them
+            const threadId = sentMessage.data.threadId;
+            if (threadId) {
+                const existingThread = await dbService.supabase
+                    .from('threads')
+                    .select('tags')
+                    .eq('id', threadId)
+                    .single();
+
+                const existingTags = existingThread.data?.tags || [];
+                const newTags = [...new Set([...existingTags, 'Sent'])];
+
+                await dbService.upsertThread({
+                    id: threadId,
+                    last_message_timestamp: sentMessage.data.date,
+                    snippet: sentMessage.data.snippet || body.substring(0, 100),
+                    tags: newTags
+                    // We don't change status/channel here, assuming it stays where it was or user moves it.
+                });
+            }
+        } catch (dbError) {
+            logger.error("Failed to save sent message to DB:", dbError);
+            // Don't fail the request if DB save fails, as email was sent
+        }
+
         res.json(sentMessage.data);
     } catch (error) {
-        logger.error("Nylas Send Error:", error);
+        logger.error("Nylas Send Error:", { error: error.message, stack: error.stack, grantId, replyToMessageId });
         res.status(500).json({ error: error.message, details: error.stack });
     }
 });
 
-app.get('/nylas/threads', async (req, res) => {
-    if (!nylas) {
-        logger.error('Nylas not configured request failed');
-        return res.status(500).json({ error: 'Nylas not configured' });
-    }
-    try {
-        const limit = req.query.limit || 10;
-        const grants = await nylas.grants.list();
 
-        if (!grants.data || grants.data.length === 0) {
-            return res.json({ threads: [], userEmail: null });
-        }
-
-        const allThreads = [];
-        const primaryEmail = grants.data[0].email;
-
-        // Fetch threads for each grant
-        for (const grant of grants.data) {
-            try {
-                const threads = await nylas.threads.list({
-                    identifier: grant.id,
-                    queryParams: { limit: parseInt(limit) }
-                });
-
-                // Attach grantId and accountEmail to each thread
-                const threadsWithGrant = threads.data.map(t => ({
-                    ...t,
-                    grantId: grant.id,
-                    accountEmail: grant.email
-                }));
-
-                allThreads.push(...threadsWithGrant);
-            } catch (err) {
-                logger.error(`Error fetching threads for grant ${grant.id}:`, err);
-                // Continue to next grant even if one fails
-            }
-        }
-
-        // Sort combined threads by last_message_timestamp (descending)
-        allThreads.sort((a, b) => b.last_message_timestamp - a.last_message_timestamp);
-
-        res.json({
-            threads: allThreads,
-            userEmail: primaryEmail // Default to first grant's email for "Me" identification
-        });
-    } catch (error) {
-        logger.error("Nylas Threads Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/nylas/thread/:id', async (req, res) => {
-    if (!nylas) {
-        logger.error('Nylas not configured request failed');
-        return res.status(500).json({ error: 'Nylas not configured' });
-    }
-    try {
-        const grantId = req.query.grantId;
-        let targetGrantId = grantId;
-
-        if (!targetGrantId) {
-            // Fallback to first grant if no grantId provided (backward compatibility)
-            const grants = await nylas.grants.list();
-            const firstGrant = grants.data[0];
-            if (!firstGrant) return res.status(401).json({ error: 'No grant found' });
-            targetGrantId = firstGrant.id;
-        }
-
-        const messages = await nylas.messages.list({
-            identifier: targetGrantId,
-            queryParams: {
-                threadId: req.params.id,
-                limit: 50 // Increased limit for full history
-            }
-        });
-
-        res.json({ messages: messages.data });
-    } catch (error) {
-        logger.error("Nylas Thread Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 
 app.get('/opticutter', (req, res) => {
@@ -350,8 +298,6 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 // --- SUPABASE EMAIL ROUTES ---
-const dbService = require('./src/services/db');
-const syncService = require('./src/services/sync');
 
 // Sync Endpoint
 // Sync Endpoint
@@ -450,20 +396,8 @@ app.get('/api/messages', async (req, res) => {
             return res.status(400).json({ error: 'threadId is required' });
         }
 
-        // Fetch from Nylas directly for now to ensure we have latest
-        // Or fetch from DB if we trust sync. Let's use Nylas for consistency with original implementation
-        // But wait, we want to use our DB cache if possible.
-        // Let's check DB first? No, original app likely used Nylas proxy.
-        // Let's use the Nylas client.
-
-        // Actually, looking at sync service, we are syncing messages to DB.
-        // But for the UI, let's stick to what was likely there or a robust fallback.
-        // If we use Nylas SDK:
-
-        const grantId = req.query.grantId || process.env.NYLAS_GRANT_ID; // Fallback
-
-        // We need to find the grant ID for the thread if not provided? 
-        // For now, let's assume we can fetch from DB which is safer/faster if synced.
+        // Fetch messages from Supabase
+        // We rely on the sync service to populate the DB from Nylas.
 
         const { data: messages, error } = await dbService.supabase
             .from('messages')

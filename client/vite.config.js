@@ -8,7 +8,8 @@ export default defineConfig({
         proxy: {
             '/nylas': 'http://localhost:3000',
             '/opticutter': 'http://localhost:3000',
-            '/supabase': 'http://localhost:3000'
+            '/supabase': 'http://localhost:3000',
+            '/api': 'http://localhost:3000'
         }
     }
 })

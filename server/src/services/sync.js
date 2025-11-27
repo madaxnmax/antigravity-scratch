@@ -37,16 +37,19 @@ class SyncService {
                 let isNew = undefined;
 
                 // Check if we need to unarchive (move to inbox)
+                let existingTags = [];
                 try {
                     const existing = await db.supabase
                         .from('threads')
-                        .select('last_message_timestamp, status')
+                        .select('last_message_timestamp, status, tags')
                         .eq('id', thread.id)
                         .single();
 
                     const newTimestamp = thread.latestMessageReceivedDate || thread.date || 0;
 
+
                     if (existing.data) {
+                        existingTags = existing.data.tags || [];
                         // If new message arrived (timestamp increased), move to inbox AND mark as new
                         if (newTimestamp > existing.data.last_message_timestamp) {
                             statusToSet = 'inbox';
@@ -65,6 +68,14 @@ class SyncService {
                     isNew = true;
                 }
 
+                // Merge existing tags with Nylas folders/labels
+                const nylasFolders = thread.folders || thread.labels || [];
+                // We want to keep existing "business" tags, but update "email" tags.
+                // For simplicity, let's just merge unique tags.
+                // Note: This might accumulate old folders if they are removed in Nylas but we don't remove them here.
+                // But it's better than losing business tags.
+                const mergedTags = [...new Set([...existingTags, ...nylasFolders])];
+
                 await db.upsertThread({
                     id: thread.id,
                     subject: thread.subject,
@@ -72,7 +83,7 @@ class SyncService {
                     last_message_timestamp: thread.latestMessageReceivedDate || thread.date, // Fix: Use correct field
                     unread: thread.unread,
                     participants: thread.participants,
-                    tags: [], // Nylas v3 doesn't have tags on thread object directly in same way, or we need to fetch folders. Keeping simple for now.
+                    tags: mergedTags,
                     status: statusToSet,
                     is_new: isNew
                 });
@@ -105,7 +116,10 @@ class SyncService {
                     from: message.from,
                     to: message.to,
                     cc: message.cc,
-                    date: message.date
+                    date: message.date,
+                    internet_message_id: message.headers?.['Message-Id'] || message.headers?.['Message-ID'], // Nylas v3 might put this in headers
+                    in_reply_to: message.headers?.['In-Reply-To'],
+                    references: message.headers?.['References']
                 });
             }
         } catch (error) {

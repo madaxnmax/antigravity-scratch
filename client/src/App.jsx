@@ -673,7 +673,7 @@ const ThreadList = ({ threads, activeThreadId, selectedThreadIds, onSelectThread
     </div>
 );
 
-const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive, onMarkAsNew, draft, onUpdateDraft }) => {
+const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, onQuoteWithAI, messages, setMessages, allTags, onUpdateTags, grants = [], defaultGrantId, onArchive, onMarkAsNew, draft, onUpdateDraft }) => {
     const messagesEndRef = useRef(null);
     const [tagMenuOpen, setTagMenuOpen] = useState(false);
     const [replyMode, setReplyMode] = useState('replyAll'); // This state is not used, can be removed if not needed
@@ -991,8 +991,38 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, 
         setSendStatus('Sending...');
 
         try {
-            // Use defaultGrantId or the first available grant if not set
-            const grantIdToSend = defaultGrantId || (grants.length > 0 ? grants[0].id : null);
+            // Smart Grant Selection Logic
+            let grantIdToSend = null;
+
+            // 1. Try to find a grant that matches one of the recipients of the *original* message (if we are replying)
+            // Or if we are just sending in a thread, look for our email in the thread history.
+
+            // Let's look at the last message in the thread.
+            const lastMsg = messages && messages.length > 0 ? messages[messages.length - 1] : null;
+
+            if (lastMsg) {
+                // If last message was from us, use that sender
+                const senderEmail = lastMsg.from && lastMsg.from.length > 0 ? (lastMsg.from[0].email || lastMsg.from[0]) : '';
+                const senderGrant = grants.find(g => g.email === senderEmail);
+                if (senderGrant) {
+                    grantIdToSend = senderGrant.id;
+                    console.log("SYSTEM ACTION: Found matching grant from sender:", senderGrant.email);
+                } else {
+                    // If last message was from someone else, check if we are in To or Cc
+                    const recipients = [...(lastMsg.to || []), ...(lastMsg.cc || [])].map(r => (r.email || r));
+                    const recipientGrant = grants.find(g => recipients.includes(g.email));
+                    if (recipientGrant) {
+                        grantIdToSend = recipientGrant.id;
+                        console.log("SYSTEM ACTION: Found matching grant from recipients:", recipientGrant.email);
+                    }
+                }
+            }
+
+            // Fallback to default or first
+            if (!grantIdToSend) {
+                grantIdToSend = defaultGrantId || (grants.length > 0 ? grants[0].id : null);
+                console.log("SYSTEM ACTION: Using default/fallback grant:", grantIdToSend);
+            }
 
             if (!grantIdToSend) {
                 console.error("SYSTEM ACTION: No grant found to send from.");
@@ -1119,6 +1149,12 @@ const ThreadView = ({ thread, onOpenQuote, onViewQuote, onCloneQuote, messages, 
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
                             >
                                 <Plus size={16} /> Build Quote
+                            </button>
+                            <button
+                                onClick={onQuoteWithAI}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow-sm font-bold text-sm flex items-center gap-2 transition-colors"
+                            >
+                                <Bot size={16} /> Quote with AI
                             </button>
                             <button onClick={() => onMarkAsNew(thread.id, true)} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Mail size={12} /> Mark as New</button>
                             <button onClick={onArchive} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded shadow-sm text-xs font-medium hover:bg-gray-50 flex items-center gap-1"><Archive size={12} /> Archive</button>
@@ -2780,7 +2816,7 @@ const MetalFlowApp = () => {
                 if (targetChannel.includes('-')) {
                     finalChannel = targetChannel.split('-')[1];
                 }
-                
+
                 payload.channel = finalChannel;
                 payload.status = 'inbox'; // Ensure it's visible (unarchive if needed)
             }
@@ -2865,6 +2901,96 @@ const MetalFlowApp = () => {
         }
     };
 
+    const handleQuoteWithAI = async () => {
+        if (!activeThreadId || !currentMessages || currentMessages.length === 0) return;
+
+        // Find the last message from a customer (not system, not user/me)
+        // We look for sender === 'customer' or just use the last non-system message
+        const relevantMsg = [...currentMessages].reverse().find(m => m.sender !== 'system');
+
+        let contentToParse = "";
+        if (relevantMsg) {
+            // Use text or body. If it's HTML, AI handles it.
+            contentToParse = relevantMsg.text || relevantMsg.body || "";
+        }
+
+        if (!contentToParse) {
+            alert("No content found to parse.");
+            return;
+        }
+
+        try {
+            // Show a loading indicator? For now just log
+            console.log("Parsing email with AI...", contentToParse.substring(0, 50) + "...");
+
+            const res = await fetch('/api/ai/parse-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: contentToParse })
+            });
+
+            if (!res.ok) throw new Error("Failed to parse email");
+
+            const data = await res.json();
+            console.log("AI Parse Result:", data);
+
+            // Convert to cart items (logic duplicated from QuoteBuilder for now)
+            const newItems = [];
+            let idCounter = Date.now();
+
+            const formatDims = (item, type) => {
+                if (type === 'Sheet') return `${item.Thickness}" x ${item.Width}" x ${item.Length}"`;
+                if (type === 'Rod') return `${item.Diameter}" OD x ${item.Length}"`;
+                if (type === 'Tube') return `${item.Outer_Diameter}" OD x ${item.Inner_Diameter}" ID x ${item.Length}"`;
+                if (type === 'Ring') return `${item.Outer_Diameter}" OD x ${item.Inner_Diameter}" ID x ${item.Thickness}" Thk`;
+                return '';
+            };
+
+            const processItems = (items, type) => {
+                if (!items) return;
+                items.forEach(item => {
+                    newItems.push({
+                        id: idCounter++,
+                        type: type,
+                        desc: `${item.Grade} ${item.Color} ${type}`,
+                        qty: parseInt(item.Quantity) || 1,
+                        specs: {
+                            mat: `${item.Grade}/${item.Color}`,
+                            dims: formatDims(item, type),
+                            grade: item.Grade,
+                            color: item.Color,
+                            thickness: item.Thickness,
+                            width: item.Width,
+                            length: item.Length,
+                            diameter: item.Diameter,
+                            outerDiameter: item.Outer_Diameter,
+                            innerDiameter: item.Inner_Diameter
+                        }
+                    });
+                });
+            };
+
+            processItems(data.sheet_value, 'Sheet');
+            processItems(data.rod_value, 'Rod');
+            processItems(data.tube_value, 'Tube');
+            processItems(data.ring_value, 'Ring');
+
+            if (newItems.length === 0) {
+                alert("AI could not find any quote items in the email.");
+                return;
+            }
+
+            // Open Quote Builder with these items
+            setQuoteInitialCart(newItems);
+            setQuoteReadOnly(false);
+            setIsQuoteModalOpen(true);
+
+        } catch (err) {
+            console.error("AI Quote Error", err);
+            alert("Failed to create quote with AI. Please try again.");
+        }
+    };
+
     return (
         <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
             <Sidebar activeChannel={activeChannel} setActiveChannel={setActiveChannel} onOpenSettings={() => setIsSettingsOpen(true)} onCompose={() => setIsComposeOpen(true)} newCount={newCount} onMoveThread={handleMoveThread} />
@@ -2885,6 +3011,7 @@ const MetalFlowApp = () => {
                 onOpenQuote={handleOpenQuote}
                 onViewQuote={onViewQuote}
                 onCloneQuote={onCloneQuote}
+                onQuoteWithAI={handleQuoteWithAI}
                 messages={currentMessages}
                 setMessages={setCurrentMessages}
                 allTags={INITIAL_TAGS}
