@@ -207,10 +207,82 @@ class DatabaseService {
                     }
                 }
 
+                // C. Check Subject Matching (Fallback)
+                if (!parentMessage) {
+                    // Heuristic: Match normalized subject + Sender participation
+                    // 1. Normalize subject: remove Re:, Fw:, Fwd:, and trim
+                    const normalizedSubject = message.subject
+                        .replace(/^(re|fw|fwd|reply|forward):\s*/i, '')
+                        .trim();
+
+                    if (normalizedSubject.length > 5) { // Avoid matching short subjects like "Hi"
+                        // Find threads with this subject (ignoring case)
+                        // And check if the sender of the NEW message is a participant in the OLD thread?
+                        // Or if ANY participant overlaps?
+                        // Let's start with: Find threads with same normalized subject.
+                        // We need to fetch candidates and check them in JS or complex query.
+                        // Supabase doesn't have easy regex search, so we'll search for subject ILIKE '%normalizedSubject%'
+                        // Actually, let's just search for exact subject match or common variations.
+
+                        // Let's try to find a message with the same normalized subject.
+                        // We can't easily normalize in SQL query without a function.
+                        // So we'll search for the exact subject OR the subject with prefixes.
+
+                        // Simplified approach: Search for messages where subject contains the normalized subject.
+                        const { data: candidates } = await this.supabase
+                            .from('messages')
+                            .select('thread_id, subject, from, to, cc')
+                            .ilike('subject', `%${normalizedSubject}%`)
+                            .order('date', { ascending: false })
+                            .limit(5);
+
+                        if (candidates && candidates.length > 0) {
+                            for (const candidate of candidates) {
+                                // Check if subject is truly similar (after normalization)
+                                const candSubject = candidate.subject.replace(/^(re|fw|fwd|reply|forward):\s*/i, '').trim();
+                                if (candSubject.toLowerCase() === normalizedSubject.toLowerCase()) {
+                                    // Subject Matches!
+                                    // Now check for participant overlap to be safe.
+                                    // New message participants: from, to, cc
+                                    // Candidate participants: from, to, cc
+
+                                    const getEmails = (list) => (list || []).map(p => p.email || p).filter(e => e);
+                                    const newParticipants = new Set([
+                                        ...getEmails(message.from),
+                                        ...getEmails(message.to),
+                                        ...getEmails(message.cc)
+                                    ]);
+
+                                    const candParticipants = new Set([
+                                        ...getEmails(candidate.from),
+                                        ...getEmails(candidate.to),
+                                        ...getEmails(candidate.cc)
+                                    ]);
+
+                                    // Check overlap
+                                    let overlap = false;
+                                    for (const email of newParticipants) {
+                                        if (candParticipants.has(email)) {
+                                            overlap = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (overlap) {
+                                        parentMessage = candidate;
+                                        logger.info(`DatabaseService: Thread link detected via Subject & Participants. Merging thread ${finalThreadId} into ${candidate.thread_id}`);
+                                        break; // Found a match
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (parentMessage) {
                     // Found parent! Ensure we are in the same thread.
                     if (parentMessage.thread_id !== finalThreadId) {
-                        logger.info(`DatabaseService: Thread link detected via Headers. Merging thread ${finalThreadId} into parent thread ${parentMessage.thread_id}`);
+                        logger.info(`DatabaseService: Thread link detected. Merging thread ${finalThreadId} into parent thread ${parentMessage.thread_id}`);
                         await this.mergeThreads(finalThreadId, parentMessage.thread_id);
                         finalThreadId = parentMessage.thread_id;
                     }
