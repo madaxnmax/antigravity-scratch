@@ -63,45 +63,87 @@ const OptimizationResult = ({ result }) => {
                 <div className="text-xs font-bold mb-2">Solution Found</div>
                 {layouts.map((layout, i) => (
                     <div key={i} className="mb-4 bg-white p-2 border border-gray-200 rounded">
-                        <div className="text-[10px] text-gray-500 mb-1">Stock: {layout.stock.length}" x {layout.stock.width}" (Qty: {layout.count})</div>
-                        <div className="relative bg-gray-100 border border-gray-300 w-full" style={{ aspectRatio: `${layout.stock.length}/${layout.stock.width}` }}>
-                            {/* Render Used Panels */}
-                            {layout.panels && layout.panels.map((panel, pIndex) => (
-                                <div
-                                    key={`p-${pIndex}`}
-                                    className="absolute bg-blue-500 border border-white opacity-80 flex items-center justify-center text-[8px] text-white font-bold overflow-hidden"
-                                    style={{
-                                        left: `${(parseFloat(panel.x) / parseFloat(layout.stock.length)) * 100}%`,
-                                        top: `${(parseFloat(panel.y) / parseFloat(layout.stock.width)) * 100}%`,
-                                        width: `${(parseFloat(panel.length) / parseFloat(layout.stock.length)) * 100}%`,
-                                        height: `${(parseFloat(panel.width) / parseFloat(layout.stock.width)) * 100}%`
-                                    }}
-                                    title={`${panel.length}" x ${panel.width}"`}
-                                >
-                                    {panel.length}x{panel.width}
-                                </div>
-                            ))}
-                            {/* Render Offcuts (Remainders) */}
-                            {layout.remainders && layout.remainders.map((remainder, rIndex) => {
-                                const color = getOffcutColor(remainder.width, remainder.length);
-                                return (
-                                    <div
-                                        key={`r-${rIndex}`}
-                                        className="absolute border border-white opacity-80 flex items-center justify-center text-[8px] text-gray-800 font-bold overflow-hidden"
-                                        style={{
-                                            backgroundColor: color,
-                                            left: `${(parseFloat(remainder.x) / parseFloat(layout.stock.length)) * 100}%`,
-                                            top: `${(parseFloat(remainder.y) / parseFloat(layout.stock.width)) * 100}%`,
-                                            width: `${(parseFloat(remainder.length) / parseFloat(layout.stock.length)) * 100}%`,
-                                            height: `${(parseFloat(remainder.width) / parseFloat(layout.stock.width)) * 100}%`
-                                        }}
-                                        title={`Offcut: ${remainder.length}" x ${remainder.width}"`}
-                                    >
-                                        {remainder.length}x{remainder.width}
-                                    </div>
-                                );
-                            })}
+                        <div className="text-[10px] text-gray-500 mb-1">
+                            Stock: {result.is1D ? `${layout.stock.length}" Length` : `${layout.stock.length}" x ${layout.stock.width}"`} (Qty: {layout.count})
                         </div>
+
+                        {result.is1D ? (
+                            // 1D Visualization (Rod/Tube)
+                            <div className="relative bg-gray-100 border border-gray-300 w-full h-8 rounded overflow-hidden flex">
+                                {/* Render Used Panels */}
+                                {layout.panels && layout.panels.map((panel, pIndex) => (
+                                    <div
+                                        key={`p-${pIndex}`}
+                                        className="absolute h-full bg-blue-500 border-r border-white flex items-center justify-center text-[8px] text-white font-bold overflow-hidden"
+                                        style={{
+                                            left: `${(parseFloat(panel.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                            width: `${(parseFloat(panel.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                        }}
+                                        title={`${panel.length}"`}
+                                    >
+                                        {panel.length}"
+                                    </div>
+                                ))}
+                                {/* Render Offcuts (Remainders) */}
+                                {layout.remainders && layout.remainders.map((remainder, rIndex) => {
+                                    const color = getOffcutColor(1, remainder.length);
+                                    return (
+                                        <div
+                                            key={`r-${rIndex}`}
+                                            className="absolute h-full border-r border-white flex items-center justify-center text-[8px] text-gray-800 font-bold overflow-hidden"
+                                            style={{
+                                                backgroundColor: color,
+                                                left: `${(parseFloat(remainder.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                                width: `${(parseFloat(remainder.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                            }}
+                                            title={`Offcut: ${remainder.length}"`}
+                                        >
+                                            {remainder.length}"
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            // 2D Visualization (Sheet)
+                            <div className="relative bg-gray-100 border border-gray-300 w-full" style={{ aspectRatio: `${layout.stock.length}/${layout.stock.width}` }}>
+                                {/* Render Used Panels */}
+                                {layout.panels && layout.panels.map((panel, pIndex) => (
+                                    <div
+                                        key={`p-${pIndex}`}
+                                        className="absolute bg-blue-500 border border-white opacity-80 flex items-center justify-center text-[8px] text-white font-bold overflow-hidden"
+                                        style={{
+                                            left: `${(parseFloat(panel.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                            top: `${(parseFloat(panel.y) / parseFloat(layout.stock.width)) * 100}%`,
+                                            width: `${(parseFloat(panel.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                            height: `${(parseFloat(panel.width) / parseFloat(layout.stock.width)) * 100}%`
+                                        }}
+                                        title={`${panel.length}" x ${panel.width}"`}
+                                    >
+                                        {panel.length}x{panel.width}
+                                    </div>
+                                ))}
+                                {/* Render Offcuts (Remainders) */}
+                                {layout.remainders && layout.remainders.map((remainder, rIndex) => {
+                                    const color = getOffcutColor(remainder.width, remainder.length);
+                                    return (
+                                        <div
+                                            key={`r-${rIndex}`}
+                                            className="absolute border border-white opacity-80 flex items-center justify-center text-[8px] text-gray-800 font-bold overflow-hidden"
+                                            style={{
+                                                backgroundColor: color,
+                                                left: `${(parseFloat(remainder.x) / parseFloat(layout.stock.length)) * 100}%`,
+                                                top: `${(parseFloat(remainder.y) / parseFloat(layout.stock.width)) * 100}%`,
+                                                width: `${(parseFloat(remainder.length) / parseFloat(layout.stock.length)) * 100}%`,
+                                                height: `${(parseFloat(remainder.width) / parseFloat(layout.stock.width)) * 100}%`
+                                            }}
+                                            title={`Offcut: ${remainder.length}" x ${remainder.width}"`}
+                                        >
+                                            {remainder.length}x{remainder.width}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                         {/* Offcut Summary */}
                         {layout.remainders && layout.remainders.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-100">

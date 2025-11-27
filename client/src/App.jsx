@@ -1524,29 +1524,39 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
         try {
             console.log(`Preparing optimization for item ${itemId} (Paranoid Mode - QuoteBuilder)...`);
 
+            // Check if we are doing 1D optimization (Rod/Tube)
+            const is1D = targetItems.some(i => ['Rod', 'Cut Rod', 'Tube', 'Cut Tube'].includes(i.type));
+
             // --- PARANOID STOCK PARSING ---
             let stocks = [];
             try {
-                const stockSizes = new Set();
-                targetItems.forEach(item => {
-                    if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
-                });
-
-                if (stockSizes.size > 0) {
-                    stocks = Array.from(stockSizes).map(sizeStr => {
-                        try {
-                            if (!sizeStr || sizeStr.toLowerCase().includes('custom')) {
-                                return { length: 96, width: 48, count: 100 };
-                            }
-                            const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
-                            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                return { width: Number(parts[0]), length: Number(parts[1]), count: 100 };
-                            }
-                        } catch (e) { console.error("Stock parse error:", e); }
-                        return { length: 96, width: 48, count: 100 }; // Fallback
-                    });
+                if (is1D) {
+                    // 1D Stock Logic: Default to 48" length, 1" width (simulated)
+                    // If we had stock size in specs, we could parse it, but for now default to 48"
+                    stocks = [{ length: 48, width: 1, count: 100 }];
                 } else {
-                    stocks = [{ length: 96, width: 48, count: 100 }];
+                    // Existing Sheet Logic
+                    const stockSizes = new Set();
+                    targetItems.forEach(item => {
+                        if (item.specs?.stockSize) stockSizes.add(item.specs.stockSize);
+                    });
+
+                    if (stockSizes.size > 0) {
+                        stocks = Array.from(stockSizes).map(sizeStr => {
+                            try {
+                                if (!sizeStr || sizeStr.toLowerCase().includes('custom')) {
+                                    return { length: 96, width: 48, count: 100 };
+                                }
+                                const parts = sizeStr.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+                                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                    return { width: Number(parts[0]), length: Number(parts[1]), count: 100 };
+                                }
+                            } catch (e) { console.error("Stock parse error:", e); }
+                            return { length: 96, width: 48, count: 100 }; // Fallback
+                        });
+                    } else {
+                        stocks = [{ length: 96, width: 48, count: 100 }];
+                    }
                 }
             } catch (e) {
                 console.error("Stock generation error:", e);
@@ -1557,21 +1567,37 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
             let requirements = [];
             try {
                 requirements = targetItems
-                    .filter(item => item.type === 'Cut Piece/Sand' || item.type === 'Sheet')
+                    .filter(item => ['Sheet', 'Cut Piece/Sand', 'Rod', 'Cut Rod', 'Tube', 'Cut Tube'].includes(item.type))
                     .map(item => {
                         try {
                             let w = 12, l = 12, c = 1; // Safe defaults
 
-                            // Try Raw
-                            if (item.specs?.rawDims?.width) w = item.specs.rawDims.width;
-                            if (item.specs?.rawDims?.length) l = item.specs.rawDims.length;
+                            if (is1D) {
+                                // 1D Requirements Logic
+                                w = 1; // Simulated width
+                                // Try to get length from rawDims or parse from dims string
+                                if (item.specs?.rawDims?.length) {
+                                    l = item.specs.rawDims.length;
+                                } else if (item.specs?.dims) {
+                                    // Fallback parsing if rawDims missing
+                                    const parts = item.specs.dims.split('x');
+                                    // For Rod: 1.0" OD x 48" -> last part usually length
+                                    const lastPart = parts[parts.length - 1];
+                                    l = parseFloat(lastPart.replace('"', '').trim());
+                                }
+                            } else {
+                                // Existing Sheet Logic
+                                // Try Raw
+                                if (item.specs?.rawDims?.width) w = item.specs.rawDims.width;
+                                if (item.specs?.rawDims?.length) l = item.specs.rawDims.length;
 
-                            // Try String
-                            if ((w === 12 || l === 12) && item.specs?.dims) {
-                                const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
-                                if (parts.length >= 2) {
-                                    if (parts.length === 3) { w = parts[1]; l = parts[2]; }
-                                    else { w = parts[0]; l = parts[1]; }
+                                // Try String
+                                if ((w === 12 || l === 12) && item.specs?.dims) {
+                                    const parts = item.specs.dims.split('x').map(p => parseFloat(p.replace('"', '').trim()));
+                                    if (parts.length >= 2) {
+                                        if (parts.length === 3) { w = parts[1]; l = parts[2]; }
+                                        else { w = parts[0]; l = parts[1]; }
+                                    }
                                 }
                             }
 
@@ -1619,7 +1645,9 @@ const QuoteBuilder = ({ isOpen, onClose, initialStep = 1, productContext, active
 
             const data = await res.json();
             console.log("Optimization result:", data);
-            setOptimizationResult(data);
+
+            // Inject is1D flag into the result for the visualizer
+            setOptimizationResult({ ...data, is1D });
         } catch (err) {
             console.error("Optimization failed:", err);
             alert("Optimization failed. Check console.");
